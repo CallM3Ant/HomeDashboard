@@ -13,8 +13,6 @@ interface AddQuestionModalProps {
     type: 'single' | 'multiple';
     correct: string[];
     incorrect: string[];
-    difficulty: number;
-    tags: string[];
   }) => Promise<{ ok: boolean; error?: string }>;
   categories: Category[];
   defaultCategoryId?: string;
@@ -24,14 +22,19 @@ export function AddQuestionModal({
   isOpen, onClose, onSubmit, categories, defaultCategoryId
 }: AddQuestionModalProps) {
   const [categoryId, setCategoryId] = useState(defaultCategoryId ?? '');
-  const [text, setText]             = useState('');
-  const [type, setType]             = useState<'single' | 'multiple'>('single');
-  const [correctInputs, setCorrectInputs]     = useState(['']);
+  const [text, setText] = useState('');
+  const [type, setType] = useState<'single' | 'multiple'>('single');
+  const [correctInputs, setCorrectInputs] = useState(['']);
   const [incorrectInputs, setIncorrectInputs] = useState(['', '', '']);
-  const [difficulty, setDifficulty] = useState(1);
-  const [tagsInput, setTagsInput]   = useState('');
-  const [error, setError]           = useState('');
-  const [loading, setLoading]       = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Sync default category when it changes (e.g. navigating to a new category)
+  const handleOpen = () => {
+    if (defaultCategoryId && !categoryId) {
+      setCategoryId(defaultCategoryId);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -39,7 +42,6 @@ export function AddQuestionModal({
 
     const correct   = correctInputs.map((s) => s.trim()).filter(Boolean);
     const incorrect = incorrectInputs.map((s) => s.trim()).filter(Boolean);
-    const tags      = tagsInput.split(',').map((s) => s.trim()).filter(Boolean);
 
     if (!categoryId) { setError('Please select a category'); return; }
     if (!text.trim()) { setError('Question text is required'); return; }
@@ -47,19 +49,21 @@ export function AddQuestionModal({
     if (type === 'single' && correct.length > 1) { setError('Single-choice questions can only have one correct answer'); return; }
 
     setLoading(true);
-    const result = await onSubmit({ category_id: categoryId, text: text.trim(), type, correct, incorrect, difficulty, tags });
+    const result = await onSubmit({ category_id: categoryId, text: text.trim(), type, correct, incorrect });
     setLoading(false);
 
     if (result.ok) {
-      // Reset form
-      setText(''); setType('single'); setCorrectInputs(['']); setIncorrectInputs(['', '', '']); setTagsInput(''); setDifficulty(1); setError('');
+      setText('');
+      setType('single');
+      setCorrectInputs(['']);
+      setIncorrectInputs(['', '', '']);
+      setError('');
       onClose();
     } else {
       setError(result.error ?? 'Failed to add question');
     }
   };
 
-  // Flatten category tree for select
   const flatCats = flattenCategories(categories);
 
   return (
@@ -169,32 +173,6 @@ export function AddQuestionModal({
             className="self-start text-red-400">+ Add wrong answer</Button>
         </div>
 
-        {/* Difficulty + Tags */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Difficulty</label>
-            <select
-              value={difficulty}
-              onChange={(e) => setDifficulty(Number(e.target.value))}
-              className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-2.5 text-slate-100 text-sm focus:outline-none focus:border-violet-500 transition-all"
-            >
-              <option value={1}>1 — Easy</option>
-              <option value={2}>2 — Medium</option>
-              <option value={3}>3 — Hard</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Tags (comma-separated)</label>
-            <input
-              type="text"
-              value={tagsInput}
-              onChange={(e) => setTagsInput(e.target.value)}
-              placeholder="algebra, formula"
-              className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 transition-all"
-            />
-          </div>
-        </div>
-
         {error && (
           <p className="text-sm text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-4 py-3">{error}</p>
         )}
@@ -211,7 +189,6 @@ export function AddQuestionModal({
 // ─── Flatten tree for <select> ────────────────────────────────────────────────
 function flattenCategories(
   cats: Category[],
-  prefix = '',
   depth = 0
 ): Array<{ id: string; label: string }> {
   const result: Array<{ id: string; label: string }> = [];
@@ -219,7 +196,7 @@ function flattenCategories(
     const indent = '  '.repeat(depth);
     result.push({ id: c.id, label: `${indent}${depth > 0 ? '└ ' : ''}${c.name}` });
     if (c.subcategories?.length) {
-      result.push(...flattenCategories(c.subcategories, `${prefix}${c.name}/`, depth + 1));
+      result.push(...flattenCategories(c.subcategories, depth + 1));
     }
   }
   return result;

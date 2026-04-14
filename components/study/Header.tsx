@@ -6,17 +6,17 @@ import { useAuth } from '@/hooks/useAuth';
 
 interface HeaderProps {
   user: User | null;
-  onSeedDb: () => void;
+  onSettings: () => void;
 }
 
-export function Header({ user, onSeedDb }: HeaderProps) {
+export function Header({ user, onSettings }: HeaderProps) {
   const { logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <header className="relative z-10 bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl px-8 py-6 mb-8 shadow-2xl shadow-black/40">
-      {/* Accent line */}
-      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 rounded-t-2xl" />
+    <header className="relative z-10 bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl px-8 py-6 mb-8 shadow-2xl shadow-black/40 overflow-hidden">
+      {/* Accent line — INSIDE overflow:hidden so it clips correctly to the rounded corners */}
+      <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700" />
 
       <div className="flex items-center justify-between gap-6 flex-wrap">
         {/* Brand */}
@@ -28,15 +28,15 @@ export function Header({ user, onSeedDb }: HeaderProps) {
             <h1 className="text-2xl font-extrabold bg-gradient-to-r from-violet-400 to-violet-600 bg-clip-text text-transparent leading-tight">
               StudyCards
             </h1>
-            <p className="text-slate-400 text-sm">Your personal flashcard system</p>
+            <p className="text-slate-400 text-sm">Master your knowledge with spaced repetition</p>
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex items-center gap-3 flex-wrap">
-          {/* Seed button (first-time setup) */}
-          <Button variant="secondary" size="sm" onClick={onSeedDb}>
-            🌱 Seed DB
+          {/* Settings */}
+          <Button variant="secondary" size="sm" onClick={onSettings}>
+            ⚙️ Settings
           </Button>
 
           {user ? (

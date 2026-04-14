@@ -1,16 +1,18 @@
 'use client';
-import { Category, QuizMode } from '@/types';
+import { Category } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 
 interface CategoryCardProps {
   category: Category;
   onNavigate: (category: Category) => void;
-  onQuiz: (categoryId: string, mode: QuizMode) => void;
+  onMasteryQuiz: (categoryId: string) => void;
+  onReview: (categoryId: string) => void;
+  onLocalQuiz: (categoryId: string) => void;
   isLoggedIn: boolean;
 }
 
-export function CategoryCard({ category, onNavigate, onQuiz, isLoggedIn }: CategoryCardProps) {
+export function CategoryCard({ category, onNavigate, onMasteryQuiz, onReview, onLocalQuiz, isLoggedIn }: CategoryCardProps) {
   const total = category.totalQuestions ?? 0;
   const stats = category.stats;
   const accuracy = stats?.accuracy ?? 0;
@@ -60,52 +62,48 @@ export function CategoryCard({ category, onNavigate, onQuiz, isLoggedIn }: Categ
                 {accuracy}%
               </span>
             </div>
-            {isLoggedIn && attempted > 0 && (
-              <ProgressBar value={accuracy} color={accuracyColor} className="mt-1" />
-            )}
+            <ProgressBar value={accuracy} color={accuracyColor} className="mt-1" />
           </>
         )}
         {isLoggedIn && dueForReview > 0 && (
           <div className="flex justify-between">
-            <span>Due for review</span>
+            <span>In review pool</span>
             <span className="text-amber-400 font-semibold">{dueForReview}</span>
           </div>
         )}
       </div>
 
-      {/* Actions */}
-      <div
-        className="flex gap-2 flex-wrap"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {total > 0 && (
-          <>
-            {isLoggedIn && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onQuiz(category.id, 'smart')}
-              >
-                ⚡ Smart Quiz
-              </Button>
-            )}
+      {/* Actions — stop propagation so clicking buttons doesn't also navigate */}
+      {total > 0 && (
+        <div
+          className="flex gap-2 flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => onMasteryQuiz(category.id)}
+          >
+            📚 Mastery
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onLocalQuiz(category.id)}
+          >
+            📝 Local
+          </Button>
+          {isLoggedIn && (
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => onQuiz(category.id, 'all')}
+              onClick={() => onReview(category.id)}
             >
-              📝 Quiz All
+              📌 Review
             </Button>
-          </>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onNavigate(category)}
-        >
-          Browse →
-        </Button>
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

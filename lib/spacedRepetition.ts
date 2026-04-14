@@ -14,18 +14,16 @@ interface SM2Result {
 
 /**
  * SM-2 spaced repetition algorithm.
- * Updates review schedule based on whether the user answered correctly.
+ * - Any wrong answer adds the question to the review pool.
+ * - A correct answer while in the review pool removes it from the pool.
  */
 export function updateSM2(
   current: SM2Input,
   correct: boolean,
-  reviewThreshold: number,
-  incorrectCount: number
 ): SM2Result {
   let { ease_factor, interval_days } = current;
 
   if (correct) {
-    // Progress through the standard SM-2 intervals
     if (interval_days <= 1) {
       interval_days = 6;
     } else {
@@ -33,7 +31,6 @@ export function updateSM2(
     }
     ease_factor = Math.max(1.3, ease_factor + 0.1);
   } else {
-    // Reset on incorrect answer
     interval_days = 1;
     ease_factor = Math.max(1.3, ease_factor - 0.2);
   }
@@ -41,8 +38,8 @@ export function updateSM2(
   const nextReview = new Date();
   nextReview.setDate(nextReview.getDate() + interval_days);
 
-  // Put in review pool if the user has missed enough times
-  const in_review_pool = incorrectCount >= reviewThreshold;
+  // Any wrong answer → in review pool. Correct answer → removed from pool.
+  const in_review_pool = !correct ? true : false;
 
   return {
     ease_factor,

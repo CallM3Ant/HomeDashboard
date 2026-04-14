@@ -4,23 +4,28 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useStudy } from '@/hooks/useStudy';
 import { useQuiz } from '@/hooks/useQuiz';
+import { useSettings } from '@/hooks/useSettings';
 import { useToastContext } from '@/components/ui/Toast';
 
-import { Header }           from '@/components/study/Header';
-import { Breadcrumb }       from '@/components/study/Breadcrumb';
-import { CategoryGrid }     from '@/components/study/CategoryGrid';
-import { QuestionList }     from '@/components/study/QuestionList';
-import { StatsPanel }       from '@/components/study/StatsPanel';
-import { AddQuestionModal } from '@/components/study/AddQuestionModal';
-import { QuizModal }        from '@/components/study/QuizModal';
-import { Modal }            from '@/components/ui/Modal';
-import { Button }           from '@/components/ui/Button';
+import { Header }            from '@/components/study/Header';
+import { Breadcrumb }        from '@/components/study/Breadcrumb';
+import { CategoryGrid }      from '@/components/study/CategoryGrid';
+import { QuestionList }      from '@/components/study/QuestionList';
+import { StatsPanel }        from '@/components/study/StatsPanel';
+import { HierarchyPanel }    from '@/components/study/HierarchyPanel';
+import { AddQuestionModal }  from '@/components/study/AddQuestionModal';
+import { SettingsModal }     from '@/components/study/SettingsModal';
+import { QuizModal }         from '@/components/study/QuizModal';
+import { Modal }             from '@/components/ui/Modal';
+import { Button }            from '@/components/ui/Button';
 
-import { Category, QuizMode } from '@/types';
+import { Category } from '@/types';
 
 export default function StudyPage() {
   const { user, loading: authLoading } = useAuth();
   const { addToast } = useToastContext();
+  const { settings, updateSettings } = useSettings(authLoading ? undefined : user?.id ?? null);
+
   const {
     categories, currentCategory, currentSubcategories,
     questions, stats, breadcrumb,
@@ -40,6 +45,7 @@ export default function StudyPage() {
   // ─── Modal state ──────────────────────────────────────────────────────────
   const [addQuestionOpen, setAddQuestionOpen]   = useState(false);
   const [addCategoryOpen, setAddCategoryOpen]   = useState(false);
+  const [settingsOpen, setSettingsOpen]         = useState(false);
   const [newCategoryName, setNewCategoryName]   = useState('');
   const [catLoading, setCatLoading]             = useState(false);
   const [catError, setCatError]                 = useState('');
@@ -49,29 +55,73 @@ export default function StudyPage() {
     navigateTo(category, [...breadcrumb, category]);
   }, [navigateTo, breadcrumb]);
 
-  // ─── Quiz ─────────────────────────────────────────────────────────────────
-  const handleQuiz = useCallback((categoryId: string, mode: QuizMode) => {
-    // Find the questions for this category
-    const pool = questions.filter((q) => q.category_id === categoryId || q.category_id.startsWith(categoryId));
-    const result = startQuiz(
-      // If we have questions loaded for this category use them; else use all loaded
-      pool.length > 0 ? pool : questions,
-      mode
-    );
-    if (result?.error) addToast(result.error, 'warning');
-  }, [questions, startQuiz, addToast]);
+  // ─── Quiz helpers ─────────────────────────────────────────────────────────
+  // Load questions for a category and immediately start a quiz
+  const startQuizForCategory = useCallback(async (
+    categoryId: string,
+    mode: 'all' | 'review' | 'smart',
+    includeSubcategories: boolean,
+  ) => {
+    try {
+      const res = await fetch(
+        `/api/questions?categoryId=${categoryId}&includeSubcategories=${includeSubcategories}`
+      );
+      if (!res.ok) throw new Error('Failed to load questions');
+      const { data } = await res.json();
+      const pool = data ?? [];
+      const result = startQuiz(pool, mode, settings.shuffleAnswers);
+      if (result?.error) addToast(result.error, 'warning');
+    } catch {
+      addToast('Failed to load questions', 'error');
+    }
+  }, [startQuiz, addToast, settings.shuffleAnswers]);
 
-  const handleCurrentCategoryQuiz = useCallback((mode: QuizMode) => {
-    const result = startQuiz(questions, mode);
+  // ─── Category card quiz buttons ──────────────────────────────────────────
+  const handleMasteryQuiz = useCallback((categoryId: string) => {
+    startQuizForCategory(categoryId, 'all', settings.includeSubcategoriesInMastery);
+  }, [startQuizForCategory, settings.includeSubcategoriesInMastery]);
+
+  const handleLocalQuiz = useCallback((categoryId: string) => {
+    startQuizForCategory(categoryId, 'all', false);
+  }, [startQuizForCategory]);
+
+  const handleReviewQuiz = useCallback((categoryId: string) => {
+    startQuizForCategory(categoryId, 'review', true);
+  }, [startQuizForCategory]);
+
+  // ─── Current category quiz buttons (from QuestionList header) ────────────
+  const handleCurrentMasteryQuiz = useCallback(() => {
+    if (!currentCategory) return;
+    handleMasteryQuiz(currentCategory.id);
+  }, [currentCategory, handleMasteryQuiz]);
+
+  const handleCurrentLocalQuiz = useCallback(() => {
+    // Local quiz = only questions directly in this category
+    const localQuestions = questions.filter(q => q.category_id === currentCategory?.id);
+    if (localQuestions.length === 0) {
+      addToast('No questions directly in this category', 'warning');
+      return;
+    }
+    const result = startQuiz(localQuestions, 'all', settings.shuffleAnswers);
     if (result?.error) addToast(result.error, 'warning');
-  }, [questions, startQuiz, addToast]);
+  }, [questions, currentCategory, startQuiz, addToast, settings.shuffleAnswers]);
+
+  const handleCurrentReview = useCallback(() => {
+    const pool = questions.filter(q => q.stats?.in_review_pool);
+    if (pool.length === 0) {
+      addToast('Your review pool is empty — great work!', 'info');
+      return;
+    }
+    const result = startQuiz(pool, 'all', settings.shuffleAnswers);
+    if (result?.error) addToast(result.error, 'warning');
+  }, [questions, startQuiz, addToast, settings.shuffleAnswers]);
 
   const handleSingleQuiz = useCallback((questionId: string) => {
     const q = questions.find((x) => x.id === questionId);
     if (!q) return;
-    const result = startQuiz([q], 'all');
+    const result = startQuiz([q], 'all', settings.shuffleAnswers);
     if (result?.error) addToast(result.error, 'warning');
-  }, [questions, startQuiz, addToast]);
+  }, [questions, startQuiz, addToast, settings.shuffleAnswers]);
 
   // ─── Delete question ──────────────────────────────────────────────────────
   const handleDeleteQuestion = useCallback(async (id: string) => {
@@ -108,22 +158,25 @@ export default function StudyPage() {
     }
   }, [newCategoryName, addCategory, currentCategory, addToast]);
 
-  // ─── Seed DB ──────────────────────────────────────────────────────────────
-  const handleSeedDb = useCallback(async () => {
+  // ─── Move category (drag and drop in hierarchy) ───────────────────────────
+  const handleMoveCategory = useCallback(async (categoryId: string, newParentId: string | null) => {
     try {
-      const res = await fetch('/api/seed', { method: 'POST' });
-      const json = await res.json();
-      if (json.data?.seeded) {
-        addToast(json.data.message, 'success');
+      const res = await fetch(`/api/categories/${categoryId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_id: newParentId }),
+      });
+      if (res.ok) {
+        addToast('Category moved', 'success');
         await loadCategories();
-        await loadStats();
       } else {
-        addToast('Database already seeded', 'info');
+        const json = await res.json();
+        addToast(json.error ?? 'Failed to move category', 'error');
       }
     } catch {
-      addToast('Seed failed', 'error');
+      addToast('Failed to move category', 'error');
     }
-  }, [loadCategories, loadStats, addToast]);
+  }, [loadCategories, addToast]);
 
   // ─── Loading state ────────────────────────────────────────────────────────
   if (authLoading) {
@@ -139,10 +192,8 @@ export default function StudyPage() {
   return (
     <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-      {/* Header */}
-      <Header user={user} onSeedDb={handleSeedDb} />
+      <Header user={user} onSettings={() => setSettingsOpen(true)} />
 
-      {/* Main grid */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-8">
 
         {/* ── Left: main content ─────────────────────────────────────────── */}
@@ -174,7 +225,7 @@ export default function StudyPage() {
             else navigateTo(cat, crumb);
           }} />
 
-          {/* Category grid (shown when not inside a leaf or always showing subcats) */}
+          {/* Category grid */}
           {currentSubcategories.length > 0 && (
             <section>
               <h2 className="text-lg font-bold text-slate-200 mb-4">
@@ -183,7 +234,9 @@ export default function StudyPage() {
               <CategoryGrid
                 categories={currentSubcategories}
                 onNavigate={handleNavigate}
-                onQuiz={handleQuiz}
+                onMasteryQuiz={handleMasteryQuiz}
+                onReview={handleReviewQuiz}
+                onLocalQuiz={handleLocalQuiz}
                 onAddCategory={() => setAddCategoryOpen(true)}
                 isLoggedIn={isLoggedIn}
                 loading={loadingCats}
@@ -191,16 +244,20 @@ export default function StudyPage() {
             </section>
           )}
 
-          {/* Question list (shown when inside a category) */}
+          {/* Question list */}
           {currentCategory && (
             <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-6 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 opacity-60" />
               <QuestionList
                 questions={questions}
+                allQuestionsInCategory={questions}
+                currentCategoryId={currentCategory.id}
                 onDelete={handleDeleteQuestion}
                 onSingleQuiz={handleSingleQuiz}
                 onAddQuestion={() => setAddQuestionOpen(true)}
-                onQuiz={handleCurrentCategoryQuiz}
+                onMasteryQuiz={handleCurrentMasteryQuiz}
+                onLocalQuiz={handleCurrentLocalQuiz}
+                onReview={handleCurrentReview}
                 isLoggedIn={isLoggedIn}
                 loading={loadingQuestions}
                 categoryName={currentCategory.name}
@@ -208,12 +265,22 @@ export default function StudyPage() {
             </div>
           )}
 
-          {/* Empty home state */}
+          {/* Empty state */}
           {!currentCategory && currentSubcategories.length === 0 && !loadingCats && (
             <div className="text-center py-20 text-slate-500">
-              <p className="text-5xl mb-4">🌱</p>
+              <p className="text-5xl mb-4">📚</p>
               <p className="text-xl font-bold mb-2 text-slate-300">No content yet</p>
-              <p className="text-sm mb-6">Click <strong>🌱 Seed DB</strong> in the header to load starter content.</p>
+              <p className="text-sm mb-6">
+                {isLoggedIn
+                  ? 'Click <strong>+ Category</strong> to create your first category.'
+                  : 'Sign in to start creating categories and questions.'
+                }
+              </p>
+              {isLoggedIn && (
+                <Button variant="primary" onClick={() => setAddCategoryOpen(true)}>
+                  + Create Category
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -222,14 +289,37 @@ export default function StudyPage() {
         <aside className="flex flex-col gap-6">
           <StatsPanel stats={stats} isLoggedIn={isLoggedIn} />
 
-          {/* Quick tip panel */}
+          {/* Category Hierarchy */}
+          <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 opacity-40" />
+            <h2 className="text-base font-bold text-slate-200 mb-4 flex items-center gap-2">
+              🗂️ Hierarchy
+              {isLoggedIn && (
+                <span className="text-[10px] text-slate-600 font-normal">drag to reorder</span>
+              )}
+            </h2>
+            <HierarchyPanel
+              categories={categories}
+              currentCategoryId={currentCategory?.id ?? null}
+              onNavigate={(cat) => {
+                // Build breadcrumb from hierarchy — navigate to the category
+                navigateTo(cat, [cat]);
+              }}
+              onGoHome={goHome}
+              onMoveCategory={isLoggedIn ? handleMoveCategory : undefined}
+              isLoggedIn={isLoggedIn}
+            />
+          </div>
+
+          {/* Tips panel */}
           <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-5 text-sm text-slate-500 relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 opacity-40" />
             <p className="font-semibold text-slate-400 mb-2">💡 Tips</p>
             <ul className="space-y-1.5">
-              <li>⚡ <strong className="text-slate-400">Smart Quiz</strong> — only shows cards due for review</li>
-              <li>📌 <strong className="text-slate-400">Review Pool</strong> — questions you got wrong 3+ times</li>
-              <li>🔥 Keep your streak going by studying daily</li>
+              <li>📚 <strong className="text-slate-400">Mastery Quiz</strong> — all questions incl. subcategories</li>
+              <li>📝 <strong className="text-slate-400">Local Quiz</strong> — only questions in this category</li>
+              <li>📌 <strong className="text-slate-400">Review</strong> — questions you&apos;ve answered wrong</li>
+              <li>🔥 Study daily to keep your streak going</li>
             </ul>
           </div>
         </aside>
@@ -237,13 +327,20 @@ export default function StudyPage() {
 
       {/* ── Modals ───────────────────────────────────────────────────────── */}
 
-      {/* Add Question */}
       <AddQuestionModal
         isOpen={addQuestionOpen}
         onClose={() => setAddQuestionOpen(false)}
         onSubmit={handleAddQuestion}
         categories={categories}
         defaultCategoryId={currentCategory?.id}
+      />
+
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onUpdate={updateSettings}
+        isLoggedIn={isLoggedIn}
       />
 
       {/* Add Category */}

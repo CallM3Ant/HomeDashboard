@@ -1,21 +1,27 @@
 'use client';
-import { Question, QuizMode } from '@/types';
+import { Question } from '@/types';
 import { QuestionItem } from './QuestionItem';
 import { Button } from '@/components/ui/Button';
 
 interface QuestionListProps {
   questions: Question[];
+  allQuestionsInCategory: Question[];  // all questions including subcats (for mastery)
+  currentCategoryId?: string;          // to filter for local quiz
   onDelete: (id: string) => void;
   onSingleQuiz: (questionId: string) => void;
   onAddQuestion: () => void;
-  onQuiz: (mode: QuizMode) => void;
+  onMasteryQuiz: () => void;
+  onLocalQuiz: () => void;
+  onReview: () => void;
   isLoggedIn: boolean;
   loading?: boolean;
   categoryName?: string;
 }
 
 export function QuestionList({
-  questions, onDelete, onSingleQuiz, onAddQuestion, onQuiz, isLoggedIn, loading, categoryName
+  questions, onDelete, onSingleQuiz, onAddQuestion,
+  onMasteryQuiz, onLocalQuiz, onReview,
+  isLoggedIn, loading, categoryName
 }: QuestionListProps) {
   if (loading) {
     return (
@@ -38,16 +44,14 @@ export function QuestionList({
         <div className="flex gap-2 flex-wrap">
           {questions.length > 0 && (
             <>
-              {isLoggedIn && (
-                <Button variant="primary" size="sm" onClick={() => onQuiz('smart')}>
-                  ⚡ Smart Quiz
-                </Button>
-              )}
-              <Button variant="secondary" size="sm" onClick={() => onQuiz('all')}>
-                📝 Quiz All
+              <Button variant="primary" size="sm" onClick={onMasteryQuiz}>
+                📚 Mastery Quiz
+              </Button>
+              <Button variant="secondary" size="sm" onClick={onLocalQuiz}>
+                📝 Local Quiz
               </Button>
               {isLoggedIn && (
-                <Button variant="secondary" size="sm" onClick={() => onQuiz('review')}>
+                <Button variant="secondary" size="sm" onClick={onReview}>
                   📌 Review
                 </Button>
               )}

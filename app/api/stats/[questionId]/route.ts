@@ -6,7 +6,6 @@ import { updateSM2 } from '@/lib/spacedRepetition';
 type Params = { params: Promise<{ questionId: string }> };
 
 // ─── POST /api/stats/[questionId] ──────────────────────────────────────────────
-// Records that a user answered a question (correctly or not)
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getCurrentUser();
@@ -19,11 +18,9 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const db = getDb();
 
-    // Verify question exists
     const question = db.prepare('SELECT id FROM questions WHERE id = ?').get(questionId);
     if (!question) return NextResponse.json({ error: 'Question not found' }, { status: 404 });
 
-    // Get existing stats or defaults
     const existing = db.prepare(`
       SELECT * FROM user_stats WHERE user_id = ? AND question_id = ?
     `).get(session.userId, questionId) as any;
@@ -40,13 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       in_review_pool: false,
     };
 
-    const incorrectCount = (existing?.incorrect_count ?? 0) + (correct ? 0 : 1);
-    const sm2Result = updateSM2(
-      { ...sm2Input, in_review_pool: sm2Input.in_review_pool },
-      correct,
-      3, // reviewThreshold
-      incorrectCount
-    );
+    const sm2Result = updateSM2(sm2Input, correct);
 
     if (existing) {
       db.prepare(`
@@ -88,7 +79,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    // Update streak
     updateStreak(db, session.userId);
 
     return NextResponse.json({ message: 'Answer recorded', data: sm2Result });
@@ -110,7 +100,7 @@ function updateStreak(db: any, userId: number) {
     return;
   }
 
-  if (streak.last_studied === today) return; // Already studied today
+  if (streak.last_studied === today) return;
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
