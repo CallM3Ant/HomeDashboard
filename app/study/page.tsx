@@ -1,25 +1,26 @@
-'use client';
+"use client";
 
-import { useState, useCallback } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useStudy } from '@/hooks/useStudy';
-import { useQuiz } from '@/hooks/useQuiz';
-import { useSettings } from '@/hooks/useSettings';
-import { useToastContext } from '@/components/ui/Toast';
+import { useState, useCallback } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useStudy } from "@/hooks/useStudy";
+import { useQuiz } from "@/hooks/useQuiz";
+import { useSettings } from "@/hooks/useSettings";
+import { useToastContext } from "@/components/ui/Toast";
 
-import { Header }            from '@/components/study/Header';
-import { Breadcrumb }        from '@/components/study/Breadcrumb';
-import { CategoryGrid }      from '@/components/study/CategoryGrid';
-import { QuestionList }      from '@/components/study/QuestionList';
-import { StatsPanel }        from '@/components/study/StatsPanel';
-import { HierarchyPanel }    from '@/components/study/HierarchyPanel';
-import { AddQuestionModal }  from '@/components/study/AddQuestionModal';
-import { SettingsModal }     from '@/components/study/SettingsModal';
-import { QuizModal }         from '@/components/study/QuizModal';
-import { Modal }             from '@/components/ui/Modal';
-import { Button }            from '@/components/ui/Button';
+import { Header } from "@/components/study/Header";
+import { Breadcrumb } from "@/components/study/Breadcrumb";
+import { CategoryGrid } from "@/components/study/CategoryGrid";
+import { QuestionList } from "@/components/study/QuestionList";
+import { StatsPanel } from "@/components/study/StatsPanel";
+import { HierarchyPanel } from "@/components/study/HierarchyPanel";
+import { AddQuestionModal } from "@/components/study/AddQuestionModal";
+import { EditQuestionModal } from "@/components/study/Editquestionmodal";
+import { SettingsModal } from "@/components/study/SettingsModal";
+import { QuizModal } from "@/components/study/QuizModal";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 
-import { Category } from '@/types';
+import { Category, Question } from "@/types";
 
 export default function StudyPage() {
   const { user, loading: authLoading } = useAuth();
@@ -27,121 +28,197 @@ export default function StudyPage() {
   const { settings, updateSettings } = useSettings(authLoading ? undefined : user?.id ?? null);
 
   const {
-    categories, currentCategory, currentSubcategories,
-    questions, stats, breadcrumb,
-    loadingCats, loadingQuestions,
-    search, setSearch,
-    navigateTo, goHome,
-    addQuestion, deleteQuestion, addCategory,
-    recordAnswer, loadCategories, loadStats,
+    categories,
+    currentCategory,
+    currentSubcategories,
+    questions,
+    stats,
+    breadcrumb,
+    loadingCats,
+    loadingQuestions,
+    search,
+    setSearch,
+    navigateTo,
+    goHome,
+    addQuestion,
+    deleteQuestion,
+    addCategory,
+    recordAnswer,
+    loadCategories,
+    loadStats,
   } = useStudy();
 
   const {
-    session, isOpen: quizOpen, currentQuestion,
-    isFinished, progress,
-    startQuiz, submitAnswer, nextQuestion, closeQuiz,
+    session,
+    isOpen: quizOpen,
+    currentQuestion,
+    isFinished,
+    progress,
+    startQuiz,
+    submitAnswer,
+    nextQuestion,
+    closeQuiz,
   } = useQuiz();
 
   // ─── Modal state ──────────────────────────────────────────────────────────
-  const [addQuestionOpen, setAddQuestionOpen]   = useState(false);
-  const [addCategoryOpen, setAddCategoryOpen]   = useState(false);
-  const [settingsOpen, setSettingsOpen]         = useState(false);
-  const [newCategoryName, setNewCategoryName]   = useState('');
-  const [catLoading, setCatLoading]             = useState(false);
-  const [catError, setCatError]                 = useState('');
+  const [addQuestionOpen, setAddQuestionOpen] = useState(false);
+  const [editQuestion, setEditQuestion] = useState<Question | null>(null);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [catLoading, setCatLoading] = useState(false);
+  const [catError, setCatError] = useState("");
+
+  // Rename category state
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+  const [renameError, setRenameError] = useState("");
 
   // ─── Navigation ──────────────────────────────────────────────────────────
-  const handleNavigate = useCallback((category: Category) => {
-    navigateTo(category, [...breadcrumb, category]);
-  }, [navigateTo, breadcrumb]);
+  const handleNavigate = useCallback(
+    (category: Category) => {
+      navigateTo(category, [...breadcrumb, category]);
+    },
+    [navigateTo, breadcrumb]
+  );
 
   // ─── Quiz helpers ─────────────────────────────────────────────────────────
-  // Load questions for a category and immediately start a quiz
-  const startQuizForCategory = useCallback(async (
-    categoryId: string,
-    mode: 'all' | 'review' | 'smart',
-    includeSubcategories: boolean,
-  ) => {
-    try {
-      const res = await fetch(
-        `/api/questions?categoryId=${categoryId}&includeSubcategories=${includeSubcategories}`
-      );
-      if (!res.ok) throw new Error('Failed to load questions');
-      const { data } = await res.json();
-      const pool = data ?? [];
-      const result = startQuiz(pool, mode, settings.shuffleAnswers);
-      if (result?.error) addToast(result.error, 'warning');
-    } catch {
-      addToast('Failed to load questions', 'error');
-    }
-  }, [startQuiz, addToast, settings.shuffleAnswers]);
+  const startQuizForCategory = useCallback(
+    async (categoryId: string, mode: "all" | "review" | "smart", includeSubs: boolean) => {
+      try {
+        const res = await fetch(
+          `/api/questions?categoryId=${categoryId}&includeSubcategories=${includeSubs}`
+        );
+        if (!res.ok) throw new Error("Failed to load questions");
+        const { data } = await res.json();
+        const result = startQuiz(data ?? [], mode, settings.shuffleAnswers);
+        if (result?.error) addToast(result.error, "warning");
+      } catch {
+        addToast("Failed to load questions", "error");
+      }
+    },
+    [startQuiz, addToast, settings.shuffleAnswers]
+  );
 
-  // ─── Category card quiz buttons ──────────────────────────────────────────
-  const handleMasteryQuiz = useCallback((categoryId: string) => {
-    startQuizForCategory(categoryId, 'all', settings.includeSubcategoriesInMastery);
-  }, [startQuizForCategory, settings.includeSubcategoriesInMastery]);
+  const handleMasteryQuiz = useCallback(
+    (categoryId: string) =>
+      startQuizForCategory(categoryId, "all", settings.includeSubcategoriesInMastery),
+    [startQuizForCategory, settings.includeSubcategoriesInMastery]
+  );
+  const handleLocalQuiz = useCallback(
+    (categoryId: string) => startQuizForCategory(categoryId, "all", false),
+    [startQuizForCategory]
+  );
+  const handleReviewQuiz = useCallback(
+    (categoryId: string) => startQuizForCategory(categoryId, "review", true),
+    [startQuizForCategory]
+  );
 
-  const handleLocalQuiz = useCallback((categoryId: string) => {
-    startQuizForCategory(categoryId, 'all', false);
-  }, [startQuizForCategory]);
-
-  const handleReviewQuiz = useCallback((categoryId: string) => {
-    startQuizForCategory(categoryId, 'review', true);
-  }, [startQuizForCategory]);
-
-  // ─── Current category quiz buttons (from QuestionList header) ────────────
   const handleCurrentMasteryQuiz = useCallback(() => {
     if (!currentCategory) return;
     handleMasteryQuiz(currentCategory.id);
   }, [currentCategory, handleMasteryQuiz]);
 
   const handleCurrentLocalQuiz = useCallback(() => {
-    // Local quiz = only questions directly in this category
-    const localQuestions = questions.filter(q => q.category_id === currentCategory?.id);
+    const localQuestions = questions.filter((q) => q.category_id === currentCategory?.id);
     if (localQuestions.length === 0) {
-      addToast('No questions directly in this category', 'warning');
+      addToast("No questions directly in this category", "warning");
       return;
     }
-    const result = startQuiz(localQuestions, 'all', settings.shuffleAnswers);
-    if (result?.error) addToast(result.error, 'warning');
+    const result = startQuiz(localQuestions, "all", settings.shuffleAnswers);
+    if (result?.error) addToast(result.error, "warning");
   }, [questions, currentCategory, startQuiz, addToast, settings.shuffleAnswers]);
 
   const handleCurrentReview = useCallback(() => {
-    const pool = questions.filter(q => q.stats?.in_review_pool);
+    const pool = questions.filter((q) => q.stats?.in_review_pool);
     if (pool.length === 0) {
-      addToast('Your review pool is empty — great work!', 'info');
+      addToast("Your review pool is empty — great work!", "info");
       return;
     }
-    const result = startQuiz(pool, 'all', settings.shuffleAnswers);
-    if (result?.error) addToast(result.error, 'warning');
+    const result = startQuiz(pool, "all", settings.shuffleAnswers);
+    if (result?.error) addToast(result.error, "warning");
   }, [questions, startQuiz, addToast, settings.shuffleAnswers]);
 
-  const handleSingleQuiz = useCallback((questionId: string) => {
-    const q = questions.find((x) => x.id === questionId);
-    if (!q) return;
-    const result = startQuiz([q], 'all', settings.shuffleAnswers);
-    if (result?.error) addToast(result.error, 'warning');
-  }, [questions, startQuiz, addToast, settings.shuffleAnswers]);
+  const handleSingleQuiz = useCallback(
+    (questionId: string) => {
+      const q = questions.find((x) => x.id === questionId);
+      if (!q) return;
+      const result = startQuiz([q], "all", settings.shuffleAnswers);
+      if (result?.error) addToast(result.error, "warning");
+    },
+    [questions, startQuiz, addToast, settings.shuffleAnswers]
+  );
 
   // ─── Delete question ──────────────────────────────────────────────────────
-  const handleDeleteQuestion = useCallback(async (id: string) => {
-    if (!confirm('Delete this question? This cannot be undone.')) return;
-    const { ok, error } = await deleteQuestion(id);
-    if (ok) addToast('Question deleted', 'success');
-    else    addToast(error ?? 'Failed to delete', 'error');
-  }, [deleteQuestion, addToast]);
+  const handleDeleteQuestion = useCallback(
+    async (id: string) => {
+      if (!confirm("Delete this question? This cannot be undone.")) return;
+      const { ok, error } = await deleteQuestion(id);
+      if (ok) addToast("Question deleted", "success");
+      else addToast(error ?? "Failed to delete", "error");
+    },
+    [deleteQuestion, addToast]
+  );
+
+  // ─── Edit question ────────────────────────────────────────────────────────
+  const handleEditQuestion = useCallback(
+    async (
+      id: string,
+      data: { text: string; type: "single" | "multiple"; correct: string[]; incorrect: string[] }
+    ) => {
+      try {
+        const res = await fetch(`/api/questions/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) {
+          addToast("Question updated", "success");
+          if (currentCategory) {
+            // Reload questions for current category
+            await fetch(`/api/questions?categoryId=${currentCategory.id}&includeSubcategories=true`);
+          }
+          await loadCategories();
+          return { ok: true };
+        }
+        const json = await res.json();
+        return { ok: false, error: json.error };
+      } catch {
+        return { ok: false, error: "Network error" };
+      }
+    },
+    [currentCategory, loadCategories, addToast]
+  );
 
   // ─── Add question ─────────────────────────────────────────────────────────
-  const handleAddQuestion = useCallback(async (data: Parameters<typeof addQuestion>[0]) => {
-    const result = await addQuestion(data);
-    if (result.ok) addToast('Question added!', 'success');
-    return result;
-  }, [addQuestion, addToast]);
+  const handleAddQuestion = useCallback(
+    async (data: {
+      category_id: string;
+      text: string;
+      type: "single" | "multiple";
+      correct: string[];
+      incorrect: string[];
+    }) => {
+      const result = await addQuestion({
+        ...data,
+        difficulty: 1,
+        tags: [],
+      });
+      if (result.ok) addToast("Question added!", "success");
+      return result;
+    },
+    [addQuestion, addToast]
+  );
 
   // ─── Add category ─────────────────────────────────────────────────────────
   const handleAddCategory = useCallback(async () => {
-    setCatError('');
-    if (!newCategoryName.trim()) { setCatError('Name is required'); return; }
+    setCatError("");
+    if (!newCategoryName.trim()) {
+      setCatError("Name is required");
+      return;
+    }
     setCatLoading(true);
     const { ok, error } = await addCategory(
       newCategoryName.trim(),
@@ -149,34 +226,101 @@ export default function StudyPage() {
     );
     setCatLoading(false);
     if (ok) {
-      addToast('Category created!', 'success');
-      setNewCategoryName('');
-      setCatError('');
+      addToast("Category created!", "success");
+      setNewCategoryName("");
+      setCatError("");
       setAddCategoryOpen(false);
     } else {
-      setCatError(error ?? 'Failed to create category');
+      setCatError(error ?? "Failed to create category");
     }
   }, [newCategoryName, addCategory, currentCategory, addToast]);
 
-  // ─── Move category (drag and drop in hierarchy) ───────────────────────────
-  const handleMoveCategory = useCallback(async (categoryId: string, newParentId: string | null) => {
+  // ─── Rename category ──────────────────────────────────────────────────────
+  const openRename = useCallback((categoryId: string, currentName: string) => {
+    setRenameTarget({ id: categoryId, name: currentName });
+    setRenameName(currentName);
+    setRenameError("");
+    setRenameOpen(true);
+  }, []);
+
+  const handleRenameCategory = useCallback(async () => {
+    if (!renameTarget) return;
+    setRenameError("");
+    if (!renameName.trim()) {
+      setRenameError("Name is required");
+      return;
+    }
+    setRenameLoading(true);
     try {
-      const res = await fetch(`/api/categories/${categoryId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parent_id: newParentId }),
+      const res = await fetch(`/api/categories/${renameTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: renameName.trim() }),
       });
+      setRenameLoading(false);
       if (res.ok) {
-        addToast('Category moved', 'success');
+        addToast("Category renamed", "success");
+        setRenameOpen(false);
         await loadCategories();
       } else {
         const json = await res.json();
-        addToast(json.error ?? 'Failed to move category', 'error');
+        setRenameError(json.error ?? "Failed to rename");
       }
     } catch {
-      addToast('Failed to move category', 'error');
+      setRenameLoading(false);
+      setRenameError("Network error");
     }
-  }, [loadCategories, addToast]);
+  }, [renameTarget, renameName, loadCategories, addToast]);
+
+  // ─── Delete category ──────────────────────────────────────────────────────
+  const handleDeleteCategory = useCallback(
+    async (categoryId: string, name: string) => {
+      if (
+        !confirm(
+          `Delete "${name}" and ALL its subcategories and questions? This cannot be undone.`
+        )
+      )
+        return;
+      try {
+        const res = await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
+        if (res.ok) {
+          addToast("Category deleted", "success");
+          // If we're inside the deleted category, go home
+          if (currentCategory?.id === categoryId) goHome();
+          await loadCategories();
+        } else {
+          const json = await res.json();
+          addToast(json.error ?? "Failed to delete", "error");
+        }
+      } catch {
+        addToast("Failed to delete category", "error");
+      }
+    },
+    [currentCategory, goHome, loadCategories, addToast]
+  );
+
+  // ─── Move category (hierarchy drag & drop) ────────────────────────────────
+  const handleMoveCategory = useCallback(
+    async (categoryId: string, newParentId: string | null) => {
+      try {
+        const res = await fetch(`/api/categories/${categoryId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parent_id: newParentId }),
+        });
+        if (res.ok) {
+          addToast("Category moved", "success");
+          await loadCategories();
+        } else {
+          const json = await res.json();
+          addToast(json.error ?? "Failed to move category", "error");
+        }
+      } catch {
+        addToast("Failed to move category", "error");
+      }
+    },
+    [loadCategories, addToast]
+  );
 
   // ─── Loading state ────────────────────────────────────────────────────────
   if (authLoading) {
@@ -191,45 +335,54 @@ export default function StudyPage() {
 
   return (
     <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
       <Header user={user} onSettings={() => setSettingsOpen(true)} />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-8">
-
         {/* ── Left: main content ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-6">
-
           {/* Search + actions bar */}
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[240px]">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">
+                🔍
+              </span>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={currentCategory ? 'Search questions…' : 'Search categories…'}
+                placeholder={
+                  currentCategory ? "Search questions…" : "Search categories…"
+                }
                 className="w-full bg-[#1e2749]/80 border border-violet-900/20 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
               />
             </div>
-
             {isLoggedIn && (
-              <Button variant="secondary" size="sm" onClick={() => setAddCategoryOpen(true)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setAddCategoryOpen(true)}
+              >
                 + Category
               </Button>
             )}
           </div>
 
           {/* Breadcrumb */}
-          <Breadcrumb breadcrumb={breadcrumb} onNavigate={(cat, crumb) => {
-            if (!cat) goHome();
-            else navigateTo(cat, crumb);
-          }} />
+          <Breadcrumb
+            breadcrumb={breadcrumb}
+            onNavigate={(cat, crumb) => {
+              if (!cat) goHome();
+              else navigateTo(cat, crumb);
+            }}
+          />
 
           {/* Category grid */}
           {currentSubcategories.length > 0 && (
             <section>
               <h2 className="text-lg font-bold text-slate-200 mb-4">
-                {currentCategory ? `${currentCategory.name} — Subcategories` : 'All Categories'}
+                {currentCategory
+                  ? `${currentCategory.name} — Subcategories`
+                  : "All Categories"}
               </h2>
               <CategoryGrid
                 categories={currentSubcategories}
@@ -238,6 +391,8 @@ export default function StudyPage() {
                 onReview={handleReviewQuiz}
                 onLocalQuiz={handleLocalQuiz}
                 onAddCategory={() => setAddCategoryOpen(true)}
+                onRenameCategory={openRename}
+                onDeleteCategory={handleDeleteCategory}
                 isLoggedIn={isLoggedIn}
                 loading={loadingCats}
               />
@@ -253,6 +408,7 @@ export default function StudyPage() {
                 allQuestionsInCategory={questions}
                 currentCategoryId={currentCategory.id}
                 onDelete={handleDeleteQuestion}
+                onEdit={(q) => setEditQuestion(q)}
                 onSingleQuiz={handleSingleQuiz}
                 onAddQuestion={() => setAddQuestionOpen(true)}
                 onMasteryQuiz={handleCurrentMasteryQuiz}
@@ -272,14 +428,37 @@ export default function StudyPage() {
               <p className="text-xl font-bold mb-2 text-slate-300">No content yet</p>
               <p className="text-sm mb-6">
                 {isLoggedIn
-                  ? 'Click <strong>+ Category</strong> to create your first category.'
-                  : 'Sign in to start creating categories and questions.'
-                }
+                  ? "Click + Category to create your first category, or import from your content file."
+                  : "Sign in to start creating categories and questions."}
               </p>
               {isLoggedIn && (
-                <Button variant="primary" onClick={() => setAddCategoryOpen(true)}>
-                  + Create Category
-                </Button>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <Button
+                    variant="primary"
+                    onClick={() => setAddCategoryOpen(true)}
+                  >
+                    + Create Category
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      const res = await fetch("/api/import", { method: "POST" });
+                      const json = await res.json();
+                      if (res.ok) {
+                        addToast(
+                          `Imported: ${json.data.categoriesCreated} categories, ${json.data.questionsCreated} questions`,
+                          "success"
+                        );
+                        await loadCategories();
+                        await loadStats();
+                      } else {
+                        addToast(json.error ?? "Import failed", "error");
+                      }
+                    }}
+                  >
+                    📥 Import from content.ts
+                  </Button>
+                </div>
               )}
             </div>
           )}
@@ -289,38 +468,52 @@ export default function StudyPage() {
         <aside className="flex flex-col gap-6">
           <StatsPanel stats={stats} isLoggedIn={isLoggedIn} />
 
+          {/* Import button (when content exists) */}
+          {isLoggedIn && (
+            <button
+              onClick={async () => {
+                const res = await fetch("/api/import", { method: "POST" });
+                const json = await res.json();
+                if (res.ok) {
+                  addToast(
+                    `Sync: +${json.data.questionsCreated} new, ${json.data.questionsSkipped} existing`,
+                    json.data.questionsCreated > 0 ? "success" : "info"
+                  );
+                  await loadCategories();
+                  await loadStats();
+                } else {
+                  addToast(json.error ?? "Import failed", "error");
+                }
+              }}
+              className="flex items-center gap-2.5 px-4 py-3 bg-[#1e2749]/80 border border-violet-900/20 rounded-xl text-sm text-slate-400 hover:text-slate-200 hover:border-violet-500/30 transition-all text-left"
+            >
+              <span>📥</span>
+              <div>
+                <p className="font-semibold text-slate-300 text-xs">Sync content.ts</p>
+                <p className="text-xs text-slate-600">Import new questions from file</p>
+              </div>
+            </button>
+          )}
+
           {/* Category Hierarchy */}
           <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-5 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 opacity-40" />
             <h2 className="text-base font-bold text-slate-200 mb-4 flex items-center gap-2">
               🗂️ Hierarchy
               {isLoggedIn && (
-                <span className="text-[10px] text-slate-600 font-normal">drag to reorder</span>
+                <span className="text-[10px] text-slate-600 font-normal">
+                  drag to reorder
+                </span>
               )}
             </h2>
             <HierarchyPanel
               categories={categories}
               currentCategoryId={currentCategory?.id ?? null}
-              onNavigate={(cat) => {
-                // Build breadcrumb from hierarchy — navigate to the category
-                navigateTo(cat, [cat]);
-              }}
+              onNavigate={(cat) => navigateTo(cat, [cat])}
               onGoHome={goHome}
               onMoveCategory={isLoggedIn ? handleMoveCategory : undefined}
               isLoggedIn={isLoggedIn}
             />
-          </div>
-
-          {/* Tips panel */}
-          <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-5 text-sm text-slate-500 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700 opacity-40" />
-            <p className="font-semibold text-slate-400 mb-2">💡 Tips</p>
-            <ul className="space-y-1.5">
-              <li>📚 <strong className="text-slate-400">Mastery Quiz</strong> — all questions incl. subcategories</li>
-              <li>📝 <strong className="text-slate-400">Local Quiz</strong> — only questions in this category</li>
-              <li>📌 <strong className="text-slate-400">Review</strong> — questions you&apos;ve answered wrong</li>
-              <li>🔥 Study daily to keep your streak going</li>
-            </ul>
           </div>
         </aside>
       </div>
@@ -335,6 +528,13 @@ export default function StudyPage() {
         defaultCategoryId={currentCategory?.id}
       />
 
+      <EditQuestionModal
+        isOpen={!!editQuestion}
+        question={editQuestion}
+        onClose={() => setEditQuestion(null)}
+        onSave={handleEditQuestion}
+      />
+
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -343,10 +543,14 @@ export default function StudyPage() {
         isLoggedIn={isLoggedIn}
       />
 
-      {/* Add Category */}
+      {/* Add Category modal */}
       <Modal
         isOpen={addCategoryOpen}
-        onClose={() => { setAddCategoryOpen(false); setNewCategoryName(''); setCatError(''); }}
+        onClose={() => {
+          setAddCategoryOpen(false);
+          setNewCategoryName("");
+          setCatError("");
+        }}
         title="Add Category"
         size="sm"
       >
@@ -359,33 +563,81 @@ export default function StudyPage() {
               type="text"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddCategory(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddCategory();
+              }}
               placeholder="e.g. Organic Chemistry"
               autoFocus
               className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
             />
             {currentCategory && (
               <p className="text-xs text-slate-600">
-                Will be created inside: <strong className="text-slate-500">{currentCategory.name}</strong>
+                Will be created inside:{" "}
+                <strong className="text-slate-500">{currentCategory.name}</strong>
               </p>
             )}
           </div>
-
           {catError && (
             <p className="text-sm text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-4 py-3">
               {catError}
             </p>
           )}
-
           <div className="flex gap-3 justify-end">
             <Button
               variant="secondary"
-              onClick={() => { setAddCategoryOpen(false); setNewCategoryName(''); setCatError(''); }}
+              onClick={() => {
+                setAddCategoryOpen(false);
+                setNewCategoryName("");
+                setCatError("");
+              }}
             >
               Cancel
             </Button>
             <Button variant="primary" loading={catLoading} onClick={handleAddCategory}>
               Create
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Rename Category modal */}
+      <Modal
+        isOpen={renameOpen}
+        onClose={() => setRenameOpen(false)}
+        title={`Rename "${renameTarget?.name}"`}
+        size="sm"
+      >
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
+              New Name
+            </label>
+            <input
+              type="text"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameCategory();
+              }}
+              autoFocus
+              className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
+            />
+          </div>
+          {renameError && (
+            <p className="text-sm text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-4 py-3">
+              {renameError}
+            </p>
+          )}
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={renameLoading}
+              onClick={handleRenameCategory}
+            >
+              Rename
             </Button>
           </div>
         </div>

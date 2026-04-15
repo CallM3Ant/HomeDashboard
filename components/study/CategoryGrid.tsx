@@ -1,7 +1,7 @@
-'use client';
-import { Category } from '@/types';
-import { CategoryCard } from './CategoryCard';
-import { Button } from '@/components/ui/Button';
+"use client";
+import { Category } from "@/types";
+import { CategoryCard } from "./CategoryCard";
+import { Button } from "@/components/ui/Button";
 
 interface CategoryGridProps {
   categories: Category[];
@@ -10,12 +10,23 @@ interface CategoryGridProps {
   onReview: (categoryId: string) => void;
   onLocalQuiz: (categoryId: string) => void;
   onAddCategory: () => void;
+  onRenameCategory: (categoryId: string, currentName: string) => void;
+  onDeleteCategory: (categoryId: string, name: string) => void;
   isLoggedIn: boolean;
   loading?: boolean;
 }
 
 export function CategoryGrid({
-  categories, onNavigate, onMasteryQuiz, onReview, onLocalQuiz, onAddCategory, isLoggedIn, loading
+  categories,
+  onNavigate,
+  onMasteryQuiz,
+  onReview,
+  onLocalQuiz,
+  onAddCategory,
+  onRenameCategory,
+  onDeleteCategory,
+  isLoggedIn,
+  loading,
 }: CategoryGridProps) {
   if (loading) {
     return (
@@ -53,6 +64,8 @@ export function CategoryGrid({
               onMasteryQuiz={onMasteryQuiz}
               onReview={onReview}
               onLocalQuiz={onLocalQuiz}
+              onRename={onRenameCategory}
+              onDelete={onDeleteCategory}
               isLoggedIn={isLoggedIn}
             />
           ))}
