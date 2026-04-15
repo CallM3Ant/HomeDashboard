@@ -1,20 +1,3 @@
-/**
- * STUDYCARDS CONTENT FILE
- * ========================
- * Edit this file to add/modify/remove categories and questions.
- * Then go to /api/import (POST) to sync changes to the database.
- *
- * FORMAT RULES:
- *  - Nested objects  → subcategories
- *  - Arrays          → questions in that category
- *  - No IDs needed — name + path is the identity
- *
- * QUESTION FIELDS:
- *  q     : question text (required)
- *  a     : correct answer(s) — string OR string[] for multiple-choice
- *  wrong : array of wrong answers (optional, makes it multiple-choice)
- *  type  : 'single' | 'multiple' — inferred from `a` if omitted
- */
 
 export interface QuestionDef {
   q: string;

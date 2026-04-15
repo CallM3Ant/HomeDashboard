@@ -1,111 +1,62 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import crypto from "crypto";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { content, ContentTree, QuestionDef } from "@/data/content";
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
+function slugify(text: string) {
+  return text.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 }
-
 function isQuestionArray(value: ContentTree | QuestionDef[]): value is QuestionDef[] {
   return Array.isArray(value);
 }
 
-interface SyncResult {
-  categoriesCreated: number;
-  categoriesUpdated: number;
-  questionsCreated: number;
-  questionsSkipped: number;
-}
+interface SyncResult { categoriesCreated: number; categoriesUpdated: number; questionsCreated: number; questionsSkipped: number; }
 
-function syncTree(
-  db: ReturnType<typeof getDb>,
-  tree: ContentTree,
-  parentId: string | null,
-  parentPath: string,
-  result: SyncResult
-) {
+async function syncTree(supabase: any, tree: ContentTree, parentId: string | null, parentPath: string, result: SyncResult) {
   for (const [name, value] of Object.entries(tree)) {
-    const slug = slugify(name);
-    const path = parentPath ? `${parentPath}/${slug}` : slug;
+    const path = parentPath ? `${parentPath}/${slugify(name)}` : slugify(name);
 
-    // Upsert category
-    let cat = db
-      .prepare("SELECT id FROM categories WHERE path = ?")
-      .get(path) as { id: string } | undefined;
+    const { data: existing } = await supabase.from('categories').select('id').eq('path', path).single();
+    let catId: string;
 
-    if (!cat) {
-      const newId = crypto.randomUUID();
-      db.prepare(
-        "INSERT INTO categories (id, name, parent_id, path, sort_order) VALUES (?, ?, ?, ?, 0)"
-      ).run(newId, name, parentId, path);
-      cat = { id: newId };
+    if (!existing) {
+      const { data: newCat } = await supabase
+        .from('categories').insert({ name, parent_id: parentId, path, sort_order: 0 }).select('id').single();
+      catId = newCat.id;
       result.categoriesCreated++;
     } else {
-      // Update name in case it changed
-      db.prepare("UPDATE categories SET name = ?, parent_id = ? WHERE id = ?").run(
-        name,
-        parentId,
-        cat.id
-      );
+      await supabase.from('categories').update({ name, parent_id: parentId }).eq('id', existing.id);
+      catId = existing.id;
       result.categoriesUpdated++;
     }
 
     if (isQuestionArray(value)) {
-      // These are questions for this category
       for (const q of value) {
         const text = q.q.trim();
-        const existing = db
-          .prepare("SELECT id FROM questions WHERE category_id = ? AND text = ?")
-          .get(cat.id, text);
+        const { data: existingQ } = await supabase
+          .from('questions').select('id').eq('category_id', catId).eq('text', text).single();
 
-        if (existing) {
-          result.questionsSkipped++;
-          continue;
-        }
+        if (existingQ) { result.questionsSkipped++; continue; }
 
         const correctAnswers = Array.isArray(q.a) ? q.a : [q.a];
-        const type: "single" | "multiple" =
-          q.type ?? (correctAnswers.length > 1 ? "multiple" : "single");
+        const type = q.type ?? (correctAnswers.length > 1 ? "multiple" : "single");
 
-        db.prepare(
-          `INSERT INTO questions (id, category_id, text, type, correct, incorrect, difficulty, tags)
-           VALUES (?, ?, ?, ?, ?, ?, 1, '[]')`
-        ).run(
-          crypto.randomUUID(),
-          cat.id,
-          text,
-          type,
-          JSON.stringify(correctAnswers),
-          JSON.stringify(q.wrong ?? [])
-        );
+        await supabase.from('questions').insert({
+          category_id: catId, text, type,
+          correct: correctAnswers, incorrect: q.wrong ?? [], difficulty: 1, tags: [],
+        });
         result.questionsCreated++;
       }
     } else {
-      // Recurse into subcategories
-      syncTree(db, value, cat.id, path, result);
+      await syncTree(supabase, value, catId, path, result);
     }
   }
 }
 
-// POST /api/import  — syncs data/content.ts into the DB
 export async function POST() {
   try {
-    const db = getDb();
-    const result: SyncResult = {
-      categoriesCreated: 0,
-      categoriesUpdated: 0,
-      questionsCreated: 0,
-      questionsSkipped: 0,
-    };
-
-    db.transaction(() => {
-      syncTree(db, content, null, "", result);
-    })();
-
+    const supabase = getSupabaseAdmin();
+    const result: SyncResult = { categoriesCreated: 0, categoriesUpdated: 0, questionsCreated: 0, questionsSkipped: 0 };
+    await syncTree(supabase, content, null, "", result);
     return NextResponse.json({ data: result, message: "Sync complete" });
   } catch (err) {
     console.error("[POST /import]", err);
@@ -113,24 +64,13 @@ export async function POST() {
   }
 }
 
-// GET /api/import — preview what's in content.ts without writing
 export async function GET() {
   function countTree(tree: ContentTree | QuestionDef[]): { cats: number; qs: number } {
     if (Array.isArray(tree)) return { cats: 0, qs: tree.length };
-    let cats = 0,
-      qs = 0;
-    for (const v of Object.values(tree)) {
-      cats++;
-      const sub = countTree(v as ContentTree | QuestionDef[]);
-      cats += sub.cats;
-      qs += sub.qs;
-    }
+    let cats = 0, qs = 0;
+    for (const v of Object.values(tree)) { cats++; const sub = countTree(v as any); cats += sub.cats; qs += sub.qs; }
     return { cats, qs };
   }
-
   const { cats, qs } = countTree(content);
-  return NextResponse.json({
-    data: { categories: cats, questions: qs },
-    message: "Call POST /api/import to sync these into the database",
-  });
+  return NextResponse.json({ data: { categories: cats, questions: qs }, message: "Call POST /api/import to sync" });
 }

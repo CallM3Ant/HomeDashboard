@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import { seedDatabase } from '@/lib/seed';
 
-export async function POST() {
-  try {
-    const result = seedDatabase();
-    return NextResponse.json({ data: result }, { status: result.seeded ? 201 : 200 });
-  } catch (err) {
-    console.error('[POST /seed]', err);
-    return NextResponse.json({ error: 'Seed failed' }, { status: 500 });
-  }
+// Seed now just calls import
+export async function POST(req: Request) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/import`, { method: 'POST' });
+  const data = await res.json();
+  return NextResponse.json(data);
 }

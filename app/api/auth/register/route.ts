@@ -1,39 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
 import { hashPassword, signToken, setAuthCookie, validateCredentials } from '@/lib/auth';
+import { getSupabaseAdmin } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
   try {
     const { username, password } = await req.json();
 
     const validationError = validateCredentials(username, password);
-    if (validationError) {
+    if (validationError)
       return NextResponse.json({ error: validationError }, { status: 400 });
-    }
 
-    const db = getDb();
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
-    if (existing) {
+    const supabase = getSupabaseAdmin();
+
+    const { data: existing } = await supabase
+      .from('users').select('id').eq('username', username).single();
+    if (existing)
       return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
-    }
 
     const hashed = await hashPassword(password);
-    const result = db.prepare(
-      'INSERT INTO users (username, password) VALUES (?, ?)'
-    ).run(username, hashed);
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert({ username, password: hashed })
+      .select('id, username')
+      .single();
 
-    const userId = result.lastInsertRowid as number;
+    if (error || !newUser) throw error;
 
-    // Create streak record
-    db.prepare('INSERT INTO user_streaks (user_id, streak) VALUES (?, 0)').run(userId);
+    await supabase.from('user_streaks').insert({ user_id: newUser.id, streak: 0 });
 
-    const token = signToken({ userId, username });
+    const token = signToken({ userId: newUser.id, username: newUser.username });
     await setAuthCookie(token);
 
-    return NextResponse.json({
-      data: { user: { id: userId, username } },
-      message: 'Account created',
-    }, { status: 201 });
+    return NextResponse.json(
+      { data: { user: { id: newUser.id, username: newUser.username } }, message: 'Account created' },
+      { status: 201 }
+    );
   } catch (err) {
     console.error('[register]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
