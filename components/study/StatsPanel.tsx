@@ -19,11 +19,15 @@ export function StatsPanel({ stats, isLoggedIn }: StatsPanelProps) {
     );
   }
 
+  const masteredPct = stats && stats.totalQuestions > 0
+    ? Math.round((stats.mastered / stats.totalQuestions) * 100)
+    : 0;
+
   const cards = [
     { label: 'Total Questions', value: stats?.totalQuestions ?? '—', icon: '📚' },
     { label: 'Attempted',       value: stats?.attempted ?? '—',       icon: '✏️' },
     { label: 'Accuracy',        value: stats ? `${stats.accuracy}%` : '—', icon: '🎯' },
-    { label: 'Streak',          value: stats ? `${stats.streak}d` : '—',   icon: '🔥' },
+    { label: 'Mastered',        value: stats ? `${stats.mastered}` : '—', icon: '🏆' },
     { label: 'Review Pool',     value: stats?.reviewPool ?? '—',       icon: '📌' },
     { label: 'Due Today',       value: stats?.dueToday ?? '—',         icon: '⏰' },
   ];
@@ -40,7 +44,11 @@ export function StatsPanel({ stats, isLoggedIn }: StatsPanelProps) {
             className="bg-[#0f0f23]/60 border border-violet-900/20 rounded-xl p-4 text-center transition-all hover:-translate-y-0.5 hover:bg-[#0f0f23] group relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-violet-500 to-violet-700 scale-x-0 group-hover:scale-x-100 transition-transform" />
-            <div className="text-2xl font-black bg-gradient-to-r from-violet-400 to-violet-600 bg-clip-text text-transparent mb-1">
+            <div className={`text-2xl font-black bg-gradient-to-r bg-clip-text text-transparent mb-1 ${
+              label === 'Mastered' ? 'from-amber-400 to-yellow-500' :
+              label === 'Review Pool' ? 'from-red-400 to-rose-500' :
+              'from-violet-400 to-violet-600'
+            }`}>
               {value}
             </div>
             <div className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">{label}</div>
@@ -48,10 +56,23 @@ export function StatsPanel({ stats, isLoggedIn }: StatsPanelProps) {
         ))}
       </div>
 
-      {stats?.lastStudied && (
-        <p className="text-xs text-slate-600 text-center mt-4">
-          Last studied: {new Date(stats.lastStudied).toLocaleDateString()}
-        </p>
+      {/* Mastery progress bar */}
+      {stats && stats.totalQuestions > 0 && (
+        <div className="mt-5">
+          <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+            <span>Mastery Progress</span>
+            <span className="text-amber-400 font-semibold">{masteredPct}%</span>
+          </div>
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all duration-700"
+              style={{ width: `${masteredPct}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-600 mt-1.5 text-center">
+            3 correct in a row to master · 1 wrong → review · 2 correct to exit review
+          </p>
+        </div>
       )}
     </div>
   );

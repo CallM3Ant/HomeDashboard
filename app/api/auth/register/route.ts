@@ -26,8 +26,6 @@ export async function POST(req: NextRequest) {
 
     if (error || !newUser) throw error;
 
-    await supabase.from('user_streaks').insert({ user_id: newUser.id, streak: 0 });
-
     const token = signToken({ userId: newUser.id, username: newUser.username });
     await setAuthCookie(token);
 

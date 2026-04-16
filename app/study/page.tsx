@@ -176,10 +176,6 @@ export default function StudyPage() {
         });
         if (res.ok) {
           addToast("Question updated", "success");
-          if (currentCategory) {
-            // Reload questions for current category
-            await fetch(`/api/questions?categoryId=${currentCategory.id}&includeSubcategories=true`);
-          }
           await loadCategories();
           return { ok: true };
         }
@@ -189,7 +185,7 @@ export default function StudyPage() {
         return { ok: false, error: "Network error" };
       }
     },
-    [currentCategory, loadCategories, addToast]
+    [loadCategories, addToast]
   );
 
   // ─── Add question ─────────────────────────────────────────────────────────
@@ -285,7 +281,6 @@ export default function StudyPage() {
         const res = await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
         if (res.ok) {
           addToast("Category deleted", "success");
-          // If we're inside the deleted category, go home
           if (currentCategory?.id === categoryId) goHome();
           await loadCategories();
         } else {
@@ -299,7 +294,7 @@ export default function StudyPage() {
     [currentCategory, goHome, loadCategories, addToast]
   );
 
-  // ─── Move category (hierarchy drag & drop) ────────────────────────────────
+  // ─── Move category ────────────────────────────────────────────────────────
   const handleMoveCategory = useCallback(
     async (categoryId: string, newParentId: string | null) => {
       try {
@@ -428,37 +423,13 @@ export default function StudyPage() {
               <p className="text-xl font-bold mb-2 text-slate-300">No content yet</p>
               <p className="text-sm mb-6">
                 {isLoggedIn
-                  ? "Click + Category to create your first category, or import from your content file."
+                  ? "Click + Category to create your first category."
                   : "Sign in to start creating categories and questions."}
               </p>
               {isLoggedIn && (
-                <div className="flex gap-3 justify-center flex-wrap">
-                  <Button
-                    variant="primary"
-                    onClick={() => setAddCategoryOpen(true)}
-                  >
-                    + Create Category
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={async () => {
-                      const res = await fetch("/api/import", { method: "POST" });
-                      const json = await res.json();
-                      if (res.ok) {
-                        addToast(
-                          `Imported: ${json.data.categoriesCreated} categories, ${json.data.questionsCreated} questions`,
-                          "success"
-                        );
-                        await loadCategories();
-                        await loadStats();
-                      } else {
-                        addToast(json.error ?? "Import failed", "error");
-                      }
-                    }}
-                  >
-                    📥 Import from content.ts
-                  </Button>
-                </div>
+                <Button variant="primary" onClick={() => setAddCategoryOpen(true)}>
+                  + Create Category
+                </Button>
               )}
             </div>
           )}
@@ -467,33 +438,6 @@ export default function StudyPage() {
         {/* ── Right: sidebar ─────────────────────────────────────────────── */}
         <aside className="flex flex-col gap-6">
           <StatsPanel stats={stats} isLoggedIn={isLoggedIn} />
-
-          {/* Import button (when content exists) */}
-          {isLoggedIn && (
-            <button
-              onClick={async () => {
-                const res = await fetch("/api/import", { method: "POST" });
-                const json = await res.json();
-                if (res.ok) {
-                  addToast(
-                    `Sync: +${json.data.questionsCreated} new, ${json.data.questionsSkipped} existing`,
-                    json.data.questionsCreated > 0 ? "success" : "info"
-                  );
-                  await loadCategories();
-                  await loadStats();
-                } else {
-                  addToast(json.error ?? "Import failed", "error");
-                }
-              }}
-              className="flex items-center gap-2.5 px-4 py-3 bg-[#1e2749]/80 border border-violet-900/20 rounded-xl text-sm text-slate-400 hover:text-slate-200 hover:border-violet-500/30 transition-all text-left"
-            >
-              <span>📥</span>
-              <div>
-                <p className="font-semibold text-slate-300 text-xs">Sync content.ts</p>
-                <p className="text-xs text-slate-600">Import new questions from file</p>
-              </div>
-            </button>
-          )}
 
           {/* Category Hierarchy */}
           <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-5 shadow-xl relative overflow-hidden">

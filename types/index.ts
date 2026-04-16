@@ -13,10 +13,12 @@ export interface Category {
   created_at: string;
   subcategories?: Category[];
   totalQuestions?: number;
+  directQuestions?: number;
   stats?: {
     accuracy: number;
     attempted: number;
     dueForReview: number;
+    mastered: number;
   };
 }
 
@@ -39,6 +41,9 @@ export interface Question {
     interval_days: number;
     next_review: string;
     in_review_pool: boolean;
+    mastered: boolean;
+    correct_streak: number;
+    review_correct_count: number;
     last_answered: string;
   } | null;
 }
@@ -47,8 +52,7 @@ export interface GlobalStats {
   totalQuestions: number;
   attempted: number;
   accuracy: number;
-  streak: number;
-  lastStudied: string | null;
+  mastered: number;
   reviewPool: number;
   dueToday: number;
 }
