@@ -9,14 +9,9 @@ interface QuestionDef {
   type?: 'single' | 'multiple';
 }
 
-type ContentTree = Record<string, ContentTree | QuestionDef[] | QuestionDef>;
-
-function slugify(text: string) {
-  return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-}
-
-function isQuestionArray(v: unknown): v is QuestionDef[] {
-  return Array.isArray(v) && (v.length === 0 || (typeof v[0] === 'object' && 'q' in (v[0] as object)));
+// Use interface (not type alias) so TypeScript can handle the self-reference
+interface ContentTree {
+  [key: string]: ContentTree | QuestionDef[] | QuestionDef | undefined;
 }
 
 interface SyncResult {
@@ -27,64 +22,18 @@ interface SyncResult {
   questionsUpdated: number;
 }
 
-async function syncTree(
-  supabase: ReturnType<typeof import('@/lib/supabase').getSupabaseAdmin>,
-  tree: ContentTree,
-  parentId: string | null,
-  parentPath: string,
-  result: SyncResult,
-  mode: 'merge' | 'replace'
-) {
-  for (const [name, value] of Object.entries(tree)) {
-    // Special key for direct questions on a category that also has subcategories
-    if (name === '_questions' && isQuestionArray(value)) {
-      // This shouldn't happen at top level, skip
-      continue;
-    }
-
-    const path = parentPath ? `${parentPath}/${slugify(name)}` : slugify(name);
-
-    const { data: existing } = await supabase
-      .from('categories').select('id').eq('path', path).single();
-
-    let catId: string;
-
-    if (!existing) {
-      const { data: newCat } = await supabase
-        .from('categories')
-        .insert({ name, parent_id: parentId, path, sort_order: 0 })
-        .select('id')
-        .single();
-      catId = newCat!.id;
-      result.categoriesCreated++;
-    } else {
-      await supabase.from('categories').update({ name, parent_id: parentId }).eq('id', existing.id);
-      catId = existing.id;
-      result.categoriesUpdated++;
-    }
-
-    if (isQuestionArray(value)) {
-      // Leaf node — add questions
-      await syncQuestions(supabase, catId, value, result, mode);
-    } else if (typeof value === 'object' && value !== null) {
-      const subtree = value as ContentTree;
-
-      // Check for _questions key (direct questions on a non-leaf category)
-      if ('_questions' in subtree && isQuestionArray(subtree['_questions'])) {
-        await syncQuestions(supabase, catId, subtree['_questions'] as QuestionDef[], result, mode);
-      }
-
-      // Recurse into subcategories
-      const subEntries = Object.entries(subtree).filter(([k]) => k !== '_questions');
-      if (subEntries.length > 0) {
-        await syncTree(supabase, Object.fromEntries(subEntries) as ContentTree, catId, path, result, mode);
-      }
-    }
-  }
+function slugify(text: string) {
+  return text.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 }
 
+function isQuestionArray(v: unknown): v is QuestionDef[] {
+  return Array.isArray(v) && (v.length === 0 || (typeof v[0] === 'object' && v[0] !== null && 'q' in (v[0] as object)));
+}
+
+type SupabaseAdmin = ReturnType<typeof import('@/lib/supabase').getSupabaseAdmin>;
+
 async function syncQuestions(
-  supabase: ReturnType<typeof import('@/lib/supabase').getSupabaseAdmin>,
+  supabase: SupabaseAdmin,
   catId: string,
   questions: QuestionDef[],
   result: SyncResult,
@@ -122,6 +71,55 @@ async function syncQuestions(
       tags: [],
     });
     result.questionsCreated++;
+  }
+}
+
+async function syncTree(
+  supabase: SupabaseAdmin,
+  tree: ContentTree,
+  parentId: string | null,
+  parentPath: string,
+  result: SyncResult,
+  mode: 'merge' | 'replace'
+) {
+  for (const [name, value] of Object.entries(tree)) {
+    if (name === '_questions' && isQuestionArray(value)) continue;
+
+    const path = parentPath ? `${parentPath}/${slugify(name)}` : slugify(name);
+
+    const { data: existing } = await supabase
+      .from('categories').select('id').eq('path', path).single();
+
+    let catId: string;
+
+    if (!existing) {
+      const { data: newCat } = await supabase
+        .from('categories')
+        .insert({ name, parent_id: parentId, path, sort_order: 0 })
+        .select('id')
+        .single();
+      catId = newCat!.id;
+      result.categoriesCreated++;
+    } else {
+      await supabase.from('categories').update({ name, parent_id: parentId }).eq('id', existing.id);
+      catId = existing.id;
+      result.categoriesUpdated++;
+    }
+
+    if (isQuestionArray(value)) {
+      await syncQuestions(supabase, catId, value, result, mode);
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      const subtree = value as ContentTree;
+
+      if ('_questions' in subtree && isQuestionArray(subtree['_questions'])) {
+        await syncQuestions(supabase, catId, subtree['_questions'] as QuestionDef[], result, mode);
+      }
+
+      const subEntries = Object.entries(subtree).filter(([k]) => k !== '_questions');
+      if (subEntries.length > 0) {
+        await syncTree(supabase, Object.fromEntries(subEntries) as ContentTree, catId, path, result, mode);
+      }
+    }
   }
 }
 

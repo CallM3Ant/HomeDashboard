@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentUser } from '@/lib/auth';
-import AdminPanel from '@/components/admin/AdminPanel';
+import AdminPanel from '@/components/admin/adminPanel';
 
 export const metadata = { title: 'Admin — StudyCards' };
 
