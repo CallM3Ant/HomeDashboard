@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'error';
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'accent';
   className?: string;
 }
 
@@ -10,11 +10,12 @@ export function Badge({ children, variant = 'default', className }: BadgeProps) 
   return (
     <span
       className={cn(
-        'inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold',
-        variant === 'default' && 'bg-slate-800 text-slate-400 border border-slate-700/50',
-        variant === 'success' && 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/30',
-        variant === 'warning' && 'bg-amber-900/30 text-amber-400 border border-amber-500/30',
-        variant === 'error' && 'bg-red-900/30 text-red-400 border border-red-500/30',
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-[var(--r-sm)] text-xs font-medium',
+        variant === 'default' && 'bg-[var(--surface-2)] text-[var(--text-2)] border border-[var(--border)]',
+        variant === 'success' && 'bg-[var(--green-soft)] text-[var(--green)] border border-[var(--green-border)]',
+        variant === 'warning' && 'bg-[var(--amber-soft)] text-[var(--amber)] border border-[var(--amber-border)]',
+        variant === 'error'   && 'bg-[var(--red-soft)] text-[var(--red)] border border-[var(--red-border)]',
+        variant === 'accent'  && 'bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent-border)]',
         className
       )}
     >

@@ -24,8 +24,8 @@ export function QuizModal({
   isOpen, session, currentQuestion, isFinished, progress,
   onClose, onSubmitAnswer, onNext, onRecordAnswer,
 }: QuizModalProps) {
-  const [selected, setSelected]     = useState<string[]>([]);
-  const [phase, setPhase]           = useState<Phase>('answering');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [phase, setPhase] = useState<Phase>('answering');
   const [lastResult, setLastResult] = useState<{ correct: boolean; correctAnswers: string[] } | null>(null);
 
   const toggleAnswer = (answer: string) => {
@@ -44,9 +44,7 @@ export function QuizModal({
     const result = onSubmitAnswer(selected);
     setLastResult(result);
     setPhase('feedback');
-    if (currentQuestion) {
-      onRecordAnswer(currentQuestion.id, result.correct);
-    }
+    if (currentQuestion) onRecordAnswer(currentQuestion.id, result.correct);
   };
 
   const handleNext = () => {
@@ -63,26 +61,25 @@ export function QuizModal({
     onClose();
   };
 
-  // ── Finished screen ──────────────────────────────────────────────────────
+  /* ── Finished screen ── */
   if (isFinished && session) {
     const pct = Math.round((session.score / session.questions.length) * 100);
     const emoji = pct >= 90 ? '🏆' : pct >= 70 ? '🎉' : pct >= 50 ? '👍' : '📚';
-    const color = pct >= 80 ? 'emerald' : pct >= 50 ? 'amber' : 'red';
+    const color = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red';
+    const label = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--amber)' : 'var(--red)';
 
     return (
-      <Modal isOpen={isOpen} onClose={handleClose} title="Quiz Complete!" size="sm">
-        <div className="text-center py-4 flex flex-col items-center gap-6">
-          <div className="text-7xl">{emoji}</div>
-          <div>
-            <div className="text-6xl font-black bg-gradient-to-r from-violet-400 to-violet-600 bg-clip-text text-transparent mb-1">
+      <Modal isOpen={isOpen} onClose={handleClose} size="sm">
+        <div className="text-center py-2 flex flex-col items-center gap-5">
+          <div className="text-5xl">{emoji}</div>
+          <div className="w-full">
+            <p className="text-4xl font-black tabular" style={{ color: label }}>
               {session.score}/{session.questions.length}
-            </div>
+            </p>
             <ProgressBar value={pct} color={color} className="mt-3 mb-2" />
-            <p className="text-2xl font-bold text-slate-200">{pct}% Accuracy</p>
+            <p className="text-lg font-bold text-[var(--text)]">{pct}% correct</p>
           </div>
-          <Button variant="primary" size="lg" onClick={handleClose} className="w-full">
-            Done
-          </Button>
+          <Button size="lg" className="w-full" onClick={handleClose}>Done</Button>
         </div>
       </Modal>
     );
@@ -90,53 +87,74 @@ export function QuizModal({
 
   if (!currentQuestion || !session) return null;
 
-  // ── Question screen ──────────────────────────────────────────────────────
   const { currentIndex, questions } = session;
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="md">
-      {/* Progress */}
-      <div className="flex justify-between text-sm text-slate-400 mb-3">
-        <span>Question {currentIndex + 1} / {questions.length}</span>
-        <span>Score: {session.score}/{currentIndex}</span>
+      {/* Progress bar */}
+      <div className="flex justify-between text-xs text-[var(--text-3)] mb-2">
+        <span>{currentIndex + 1} / {questions.length}</span>
+        <span className="tabular">{session.score} correct</span>
       </div>
-      <ProgressBar value={progress} className="mb-6" />
+      <ProgressBar value={progress} className="mb-5" />
 
       {/* Question */}
-      <p className="text-xl font-bold text-slate-100 mb-6 leading-snug">{currentQuestion.text}</p>
+      <p className="text-base font-semibold text-[var(--text)] mb-5 leading-snug">
+        {currentQuestion.text}
+      </p>
 
       {/* Answer options */}
-      <div className="flex flex-col gap-3 mb-8">
+      <div className="flex flex-col gap-2 mb-5">
         {currentQuestion.allAnswers.map((answer) => {
           const isSelected  = selected.includes(answer);
           const isCorrect   = lastResult?.correctAnswers.includes(answer);
           const isWrong     = phase === 'feedback' && isSelected && !isCorrect;
 
+          let borderColor = 'var(--border)';
+          let bgColor = 'transparent';
+          let textColor = 'var(--text)';
+
+          if (phase === 'answering' && isSelected) {
+            borderColor = 'var(--accent-border)';
+            bgColor = 'var(--accent-soft)';
+            textColor = 'var(--text)';
+          } else if (phase === 'feedback' && isCorrect) {
+            borderColor = 'var(--green-border)';
+            bgColor = 'var(--green-soft)';
+            textColor = 'var(--green)';
+          } else if (phase === 'feedback' && isWrong) {
+            borderColor = 'var(--red-border)';
+            bgColor = 'var(--red-soft)';
+            textColor = 'var(--red)';
+          } else if (phase === 'feedback') {
+            textColor = 'var(--text-3)';
+          }
+
           return (
             <button
               key={answer}
               onClick={() => toggleAnswer(answer)}
-              className={cn(
-                'w-full text-left px-5 py-4 rounded-xl border text-sm font-medium transition-all duration-200',
-                phase === 'answering' && !isSelected &&
-                  'border-violet-900/20 text-slate-300 hover:border-violet-500/40 hover:bg-violet-900/10',
-                phase === 'answering' && isSelected &&
-                  'border-violet-500 bg-violet-900/30 text-violet-200',
-                phase === 'feedback' && isCorrect &&
-                  'border-emerald-500 bg-emerald-900/30 text-emerald-200 cursor-default',
-                phase === 'feedback' && isWrong &&
-                  'border-red-500 bg-red-900/30 text-red-300 cursor-default',
-                phase === 'feedback' && !isCorrect && !isWrong &&
-                  'border-slate-700/30 text-slate-500 cursor-default',
-              )}
+              className="w-full text-left px-4 py-3 rounded-[var(--r)] text-sm transition-all duration-150"
+              style={{
+                border: `1px solid ${borderColor}`,
+                background: bgColor,
+                color: textColor,
+                cursor: phase === 'feedback' ? 'default' : 'pointer',
+              }}
             >
               <span className="flex items-center gap-3">
-                <span className={cn(
-                  'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 text-xs font-bold',
-                  phase === 'answering' && isSelected ? 'border-violet-400 bg-violet-400 text-white' : 'border-slate-600',
-                  phase === 'feedback' && isCorrect ? 'border-emerald-400 bg-emerald-400 text-white' : '',
-                  phase === 'feedback' && isWrong   ? 'border-red-400 bg-red-400 text-white' : '',
-                )}>
+                <span
+                  className="w-4 h-4 rounded-full border flex-shrink-0 flex items-center justify-center text-[10px] font-bold transition-all"
+                  style={{
+                    borderColor: phase === 'answering' && isSelected ? 'var(--accent)' :
+                                 phase === 'feedback' && isCorrect ? 'var(--green)' :
+                                 phase === 'feedback' && isWrong ? 'var(--red)' : 'var(--border-2)',
+                    background: phase === 'answering' && isSelected ? 'var(--accent)' :
+                                phase === 'feedback' && isCorrect ? 'var(--green)' :
+                                phase === 'feedback' && isWrong ? 'var(--red)' : 'transparent',
+                    color: 'white',
+                  }}
+                >
                   {phase === 'feedback' && isCorrect ? '✓' : phase === 'feedback' && isWrong ? '✗' : ''}
                 </span>
                 {answer}
@@ -146,20 +164,22 @@ export function QuizModal({
         })}
       </div>
 
-      {/* Feedback message */}
+      {/* Feedback */}
       {phase === 'feedback' && lastResult && (
-        <div className={cn(
-          'mb-5 px-5 py-3.5 rounded-xl border text-sm font-semibold',
-          lastResult.correct
-            ? 'bg-emerald-900/30 border-emerald-500/40 text-emerald-300'
-            : 'bg-red-900/30 border-red-500/40 text-red-300'
-        )}>
-          {lastResult.correct ? '✓ Correct! Great job.' : '✗ Incorrect. Review the highlighted answers.'}
+        <div
+          className="mb-4 px-4 py-3 rounded-[var(--r)] text-sm font-medium"
+          style={{
+            background: lastResult.correct ? 'var(--green-soft)' : 'var(--red-soft)',
+            border: `1px solid ${lastResult.correct ? 'var(--green-border)' : 'var(--red-border)'}`,
+            color: lastResult.correct ? 'var(--green)' : 'var(--red)',
+          }}
+        >
+          {lastResult.correct ? '✓ Correct!' : '✗ Incorrect — check the highlighted answers.'}
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-3">
+      {/* Buttons */}
+      <div className="flex gap-2">
         {phase === 'answering' ? (
           <>
             <Button
@@ -168,16 +188,20 @@ export function QuizModal({
               disabled={selected.length === 0}
               className="flex-1"
             >
-              Submit Answer
+              Submit
             </Button>
-            <Button variant="secondary" onClick={handleClose}>Quit</Button>
+            <Button variant="ghost" onClick={handleClose} size="md">
+              Quit
+            </Button>
           </>
         ) : (
           <>
             <Button variant="primary" onClick={handleNext} className="flex-1">
-              {currentIndex + 1 < questions.length ? 'Next Question →' : 'See Results'}
+              {currentIndex + 1 < questions.length ? 'Next →' : 'See results'}
             </Button>
-            <Button variant="secondary" onClick={handleClose}>Quit</Button>
+            <Button variant="ghost" onClick={handleClose} size="md">
+              Quit
+            </Button>
           </>
         )}
       </div>

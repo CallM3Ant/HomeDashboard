@@ -26,111 +26,106 @@ export function QuestionItem({
       : null;
 
   const accuracyVariant =
-    accuracy === null
-      ? "default"
-      : accuracy >= 80
-      ? "success"
-      : accuracy >= 50
-      ? "warning"
-      : "error";
+    accuracy === null ? 'default' : accuracy >= 80 ? 'success' : accuracy >= 50 ? 'warning' : 'error';
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
   return (
-    <div className="group relative bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-xl p-5 transition-all duration-200 hover:border-violet-500/30 hover:translate-x-1 overflow-hidden">
-      {/* Left accent bar */}
-      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-gradient-to-b from-violet-500 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity rounded-l-xl" />
+    <div
+      className="group flex items-start gap-3 px-4 py-3.5 rounded-[var(--r)] transition-colors"
+      style={{ border: '1px solid transparent' }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--border)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'transparent')}
+    >
+      {/* Type pill */}
+      <span
+        className="shrink-0 mt-0.5 text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded"
+        style={{
+          background: 'var(--surface-2)',
+          color: 'var(--text-3)',
+          border: '1px solid var(--border)',
+        }}
+      >
+        {question.type === 'single' ? 'S' : 'M'}
+      </span>
 
-      <div className="flex items-start justify-between gap-4">
-        {/* Question text + meta */}
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-slate-100 mb-2 leading-snug">
-            {question.text}
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-[var(--text)] leading-snug">{question.text}</p>
+        <p className="text-xs text-[var(--green)] mt-1 truncate opacity-70">
+          ✓ {question.correct.join(' · ')}
+        </p>
+        {question.incorrect.length > 0 && (
+          <p className="text-xs text-[var(--text-3)] truncate">
+            ✗ {question.incorrect.join(' · ')}
           </p>
+        )}
 
-          <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500">
-            <span className="border border-slate-700/50 rounded-lg px-2 py-0.5 capitalize">
-              {question.type === "single" ? "🔘 Single" : "☑️ Multiple"}
-            </span>
-            <span className="border border-slate-700/50 rounded-lg px-2 py-0.5">
-              {question.correct.length} correct answer
-              {question.correct.length !== 1 ? "s" : ""}
-            </span>
+        {isLoggedIn && stats && (
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <Badge variant={accuracyVariant}>
+              {accuracy !== null ? `${accuracy}%` : 'Not attempted'}
+            </Badge>
+            <Badge variant="default">{stats.total_attempts} attempts</Badge>
+            {stats.mastered && <Badge variant="warning">⭐ Mastered</Badge>}
+            {stats.in_review_pool && !stats.mastered && <Badge variant="error">📌 Review</Badge>}
           </div>
+        )}
+      </div>
 
-          {/* Spaced repetition badge */}
-          {isLoggedIn && stats && (
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              <Badge variant={accuracyVariant}>
-                {accuracy !== null ? `${accuracy}% accuracy` : "Not attempted"}
-              </Badge>
-              <Badge variant="default">
-                {stats.total_attempts} attempt
-                {stats.total_attempts !== 1 ? "s" : ""}
-              </Badge>
-              {stats.in_review_pool && (
-                <Badge variant="warning">📌 Review pool</Badge>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => onQuiz(question.id)}
+          className="text-[11px] py-1 px-2.5"
+        >
+          Practice
+        </Button>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button variant="secondary" size="sm" onClick={() => onQuiz(question.id)}>
-            Practice
-          </Button>
-
-          {isLoggedIn && (
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-300 hover:bg-violet-900/30 transition-colors"
-                title="Question settings"
+        {isLoggedIn && (
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="w-7 h-7 flex items-center justify-center rounded-[var(--r-sm)] text-[var(--text-3)] hover:text-[var(--text-2)] hover:bg-[var(--surface-2)] transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+              </svg>
+            </button>
+            {menuOpen && (
+              <div
+                className="absolute right-0 mt-1 w-32 rounded-[var(--r)] overflow-hidden z-50 animate-slideDown"
+                style={{ background: 'var(--surface-2)', border: '1px solid var(--border-2)', boxShadow: '0 8px 20px rgba(0,0,0,0.4)' }}
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <circle cx="8" cy="2" r="1.5" />
-                  <circle cx="8" cy="8" r="1.5" />
-                  <circle cx="8" cy="14" r="1.5" />
-                </svg>
-              </button>
-
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-32 bg-[#1e2749] border border-violet-900/30 rounded-xl shadow-xl z-50 overflow-hidden">
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onEdit(question);
-                    }}
-                    className="w-full text-left px-3 py-2.5 text-xs text-slate-300 hover:bg-violet-900/20 transition-colors flex items-center gap-2"
-                  >
-                    ✏️ Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onDelete(question.id);
-                    }}
-                    className="w-full text-left px-3 py-2.5 text-xs text-red-400 hover:bg-red-900/20 transition-colors flex items-center gap-2"
-                  >
-                    🗑️ Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+                <button
+                  onClick={() => { setMenuOpen(false); onEdit(question); }}
+                  className="w-full text-left px-3 py-2.5 text-xs text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--surface-3,#2a2a32)] transition-colors flex items-center gap-2"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+                <button
+                  onClick={() => { setMenuOpen(false); onDelete(question.id); }}
+                  className="w-full text-left px-3 py-2.5 text-xs text-[var(--red)] hover:bg-[var(--red-soft)] transition-colors flex items-center gap-2"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

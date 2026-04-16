@@ -1,25 +1,29 @@
 import { cn } from '@/lib/utils';
 
 interface ProgressBarProps {
-  value: number; // 0–100
-  color?: 'violet' | 'emerald' | 'amber' | 'red';
+  value: number;
+  color?: 'accent' | 'green' | 'amber' | 'red';
   className?: string;
 }
 
-export function ProgressBar({ value, color = 'violet', className }: ProgressBarProps) {
+export function ProgressBar({ value, color = 'accent', className }: ProgressBarProps) {
   const clamped = Math.max(0, Math.min(100, value));
 
+  const barColor = {
+    accent: 'var(--accent)',
+    green:  'var(--green)',
+    amber:  'var(--amber)',
+    red:    'var(--red)',
+  }[color];
+
   return (
-    <div className={cn('w-full h-1.5 bg-slate-800 rounded-full overflow-hidden', className)}>
+    <div
+      className={cn('w-full h-1 rounded-full overflow-hidden', className)}
+      style={{ background: 'var(--surface-2)' }}
+    >
       <div
-        className={cn(
-          'h-full rounded-full transition-all duration-500',
-          color === 'violet' && 'bg-gradient-to-r from-violet-500 to-violet-400',
-          color === 'emerald' && 'bg-gradient-to-r from-emerald-500 to-emerald-400',
-          color === 'amber' && 'bg-gradient-to-r from-amber-500 to-amber-400',
-          color === 'red' && 'bg-gradient-to-r from-red-500 to-red-400'
-        )}
-        style={{ width: `${clamped}%` }}
+        className="h-full rounded-full transition-all duration-500"
+        style={{ width: `${clamped}%`, background: barColor }}
       />
     </div>
   );

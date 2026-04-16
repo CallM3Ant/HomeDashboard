@@ -4,22 +4,25 @@ export const metadata = { title: 'Create Account — StudyCards' };
 
 export default function RegisterPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative z-10">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-700 flex items-center justify-center shadow-lg shadow-violet-900/50 text-3xl mx-auto mb-4">
-            🧠
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--bg)' }}>
+      <div className="w-full max-w-sm">
+        {/* Brand */}
+        <div className="text-center mb-8">
+          <div
+            className="w-10 h-10 rounded-[var(--r)] flex items-center justify-center text-white text-lg font-black mx-auto mb-4"
+            style={{ background: 'var(--accent)' }}
+          >
+            S
           </div>
-          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-violet-400 to-violet-600 bg-clip-text text-transparent">
-            StudyCards
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">Create your account</p>
+          <h1 className="text-xl font-bold text-[var(--text)]">StudyCards</h1>
+          <p className="text-sm text-[var(--text-3)] mt-1">Create your account</p>
         </div>
 
         {/* Card */}
-        <div className="bg-gradient-to-br from-[#1e2749] to-[#16213e] border border-violet-900/20 rounded-2xl p-8 shadow-2xl shadow-black/40 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-violet-700" />
+        <div
+          className="p-6 rounded-[var(--r-xl)]"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        >
           <RegisterForm />
         </div>
       </div>
