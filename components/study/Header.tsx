@@ -43,7 +43,13 @@ export function Header({ user, onSettings }: HeaderProps) {
           </Button>
 
           {user ? (
-            <div className="relative">
+             <div className="relative flex items-center gap-2">
+    
+                  <ahref="/admin"
+                  className="flex items-center gap-1.5 bg-[#0f0f23]/60 border border-violet-900/30 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-400 hover:text-violet-400 hover:border-violet-500/40 transition-all"
+                >
+                  🛠 Admin
+                </a>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
                 className="flex items-center gap-2.5 bg-[#0f0f23]/60 border border-violet-900/30 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-violet-500/40 hover:bg-[#0f0f23] transition-all"
