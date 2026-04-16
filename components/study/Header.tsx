@@ -3,6 +3,7 @@ import { useState } from "react";
 import { User } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/hooks/useAuth";
+import Link from "next/link";
 
 interface HeaderProps {
   user: User | null;
@@ -45,11 +46,12 @@ export function Header({ user, onSettings }: HeaderProps) {
           {user ? (
              <div className="relative flex items-center gap-2">
     
-                  <ahref="/admin"
-                  className="flex items-center gap-1.5 bg-[#0f0f23]/60 border border-violet-900/30 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-400 hover:text-violet-400 hover:border-violet-500/40 transition-all"
-                >
-                  🛠 Admin
-                </a>
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 bg-[#0f0f23]/60 border border-violet-900/30 rounded-xl px-3 py-2.5 text-xs font-semibold text-slate-400 hover:text-violet-400 hover:border-violet-500/40 transition-all"
+                  >
+                    🛠 Admin
+                  </Link>
               <button
                 onClick={() => setMenuOpen((o) => !o)}
                 className="flex items-center gap-2.5 bg-[#0f0f23]/60 border border-violet-900/30 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-200 hover:border-violet-500/40 hover:bg-[#0f0f23] transition-all"
