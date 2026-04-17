@@ -34,11 +34,12 @@ export function QuestionList({
 }: QuestionListProps) {
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
         {[...Array(4)].map((_, i) => (
           <div
             key={i}
-            className="h-20 bg-[#1e2749]/60 rounded-xl animate-pulse border border-violet-900/10"
+            className="h-16 rounded-[var(--r)] animate-pulse"
+            style={{ background: 'var(--surface-2)' }}
           />
         ))}
       </div>
@@ -47,55 +48,50 @@ export function QuestionList({
 
   return (
     <div>
-      {/* Section header */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <h2 className="text-lg font-bold text-slate-200">
-          Questions {categoryName ? `in ${categoryName}` : ""}
-          <span className="ml-2 text-sm font-normal text-slate-500">
-            ({questions.length})
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-[var(--text)]">
+            {categoryName ? categoryName : 'Questions'}
+          </h2>
+          <span
+            className="text-xs px-2 py-0.5 rounded-full tabular font-medium"
+            style={{ background: 'var(--surface-2)', color: 'var(--text-3)' }}
+          >
+            {questions.length}
           </span>
-        </h2>
-        <div className="flex gap-2 flex-wrap">
+        </div>
+
+        <div className="flex gap-1.5 flex-wrap">
           {questions.length > 0 && (
             <>
-              <Button variant="primary" size="sm" onClick={onMasteryQuiz}>
-                📚 Mastery Quiz
-              </Button>
-              <Button variant="secondary" size="sm" onClick={onLocalQuiz}>
-                📝 Local Quiz
-              </Button>
+              <Button variant="primary" size="sm" onClick={onMasteryQuiz}>Mastery</Button>
+              <Button variant="secondary" size="sm" onClick={onLocalQuiz}>Local</Button>
               {isLoggedIn && (
-                <Button variant="secondary" size="sm" onClick={onReview}>
-                  📌 Review
-                </Button>
+                <Button variant="secondary" size="sm" onClick={onReview}>Review</Button>
               )}
             </>
           )}
           {isLoggedIn && (
             <Button variant="secondary" size="sm" onClick={onAddQuestion}>
-              + Add Question
+              + Question
             </Button>
           )}
         </div>
       </div>
 
       {questions.length === 0 ? (
-        <div className="text-center py-16 text-slate-600">
-          <p className="text-3xl mb-3">💬</p>
-          <p className="font-semibold mb-1">No questions here yet</p>
+        <div className="text-center py-12 text-[var(--text-3)]">
+          <p className="text-2xl mb-2">💬</p>
+          <p className="text-sm font-medium text-[var(--text-2)] mb-1">No questions here yet</p>
           {isLoggedIn && (
-            <Button
-              variant="primary"
-              size="sm"
-              className="mt-4"
-              onClick={onAddQuestion}
-            >
-              + Add First Question
+            <Button variant="secondary" size="sm" className="mt-3" onClick={onAddQuestion}>
+              + Add first question
             </Button>
           )}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {questions.map((q) => (
             <QuestionItem
               key={q.id}

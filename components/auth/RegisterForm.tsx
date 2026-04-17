@@ -5,14 +5,45 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 
+function Field({
+  label, type, value, onChange, placeholder, autoComplete, hint,
+}: {
+  label: string;
+  type: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="label">{label}</label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        required
+        className="w-full text-sm px-3 py-2.5 rounded-[var(--r-sm)] text-[var(--text)] placeholder-[var(--text-3)] transition-colors"
+        style={{ background: 'var(--bg)', border: '1px solid var(--border-2)', outline: 'none' }}
+        onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; }}
+        onBlur={(e) => { e.target.style.borderColor = 'var(--border-2)'; }}
+      />
+      {hint && <p className="text-[11px] text-[var(--text-3)]">{hint}</p>}
+    </div>
+  );
+}
+
 export function RegisterForm() {
   const { register } = useAuth();
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm]   = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,66 +56,29 @@ export function RegisterForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-          Username
-        </label>
-        <input
-          type="text"
-          autoComplete="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="choose_a_username"
-          required
-          className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-        />
-        <p className="text-xs text-slate-600">Letters, numbers, _ and - only. 3–24 chars.</p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-          Password
-        </label>
-        <input
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
-          required
-          className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-          Confirm Password
-        </label>
-        <input
-          type="password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
-          placeholder="••••••••"
-          required
-          className="bg-[#0f0f23] border border-violet-900/30 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all"
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <Field label="Username" type="text" value={username} onChange={setUsername}
+        placeholder="choose_a_username" autoComplete="username"
+        hint="Letters, numbers, _ and - only. 3–24 chars." />
+      <Field label="Password" type="password" value={password} onChange={setPassword}
+        placeholder="••••••••" autoComplete="new-password" />
+      <Field label="Confirm password" type="password" value={confirm} onChange={setConfirm}
+        placeholder="••••••••" autoComplete="new-password" />
 
       {error && (
-        <p className="text-sm text-red-400 bg-red-900/20 border border-red-500/20 rounded-xl px-4 py-3">
+        <p className="text-xs px-3 py-2.5 rounded-[var(--r-sm)]"
+          style={{ background: 'var(--red-soft)', border: '1px solid var(--red-border)', color: 'var(--red)' }}>
           {error}
         </p>
       )}
 
-      <Button type="submit" loading={loading} size="lg" className="mt-1">
-        Create Account
+      <Button type="submit" loading={loading} size="lg" className="w-full mt-1">
+        Create account
       </Button>
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="text-center text-xs text-[var(--text-3)]">
         Already have an account?{' '}
-        <Link href="/login" className="text-violet-400 hover:text-violet-300 font-semibold transition-colors">
+        <Link href="/login" className="text-[var(--accent)] hover:underline font-medium">
           Sign in
         </Link>
       </p>
