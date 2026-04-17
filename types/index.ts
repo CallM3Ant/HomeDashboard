@@ -18,8 +18,9 @@ export interface Category {
   stats?: {
     accuracy: number;
     attempted: number;
-    dueForReview: number;
     mastered: number;
+    masteryPercent: number;
+    dueForReview?: number;
   };
 }
 

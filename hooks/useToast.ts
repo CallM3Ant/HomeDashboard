@@ -1,7 +1,6 @@
 'use client';
 import { useState, useCallback } from 'react';
 import { Toast, ToastType } from '@/types';
-import crypto from 'crypto';
 
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);

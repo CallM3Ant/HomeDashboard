@@ -17,6 +17,7 @@ import { AddQuestionModal } from "@/components/study/AddQuestionModal";
 import { EditQuestionModal } from "@/components/study/Editquestionmodal";
 import { SettingsModal } from "@/components/study/SettingsModal";
 import { QuizModal } from "@/components/study/QuizModal";
+import { ReviewEmptyModal } from "@/components/study/ReviewEmptyModal";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 
@@ -41,39 +42,17 @@ export default function StudyPage() {
   const { settings, updateSettings } = useSettings(authLoading ? undefined : user?.id ?? null);
 
   const {
-    categories,
-    currentCategory,
-    currentSubcategories,
-    questions,
-    stats,
-    breadcrumb,
-    loadingCats,
-    loadingQuestions,
-    search,
-    setSearch,
-    navigateTo,
-    goHome,
-    addQuestion,
-    deleteQuestion,
-    addCategory,
-    recordAnswer,
-    loadCategories,
-    loadStats,
+    categories, currentCategory, currentSubcategories, questions, stats, breadcrumb,
+    loadingCats, loadingQuestions, search, setSearch, navigateTo, goHome,
+    addQuestion, deleteQuestion, addCategory, recordAnswer, loadCategories, loadStats,
   } = useStudy();
 
   const {
-    session,
-    isOpen: quizOpen,
-    currentQuestion,
-    isFinished,
-    progress,
-    startQuiz,
-    submitAnswer,
-    nextQuestion,
-    closeQuiz,
+    session, isOpen: quizOpen, currentQuestion, isFinished, progress,
+    startQuiz, submitAnswer, nextQuestion, closeQuiz,
   } = useQuiz();
 
-  // ─── Modal state ──────────────────────────────────────────────────────
+  // Modal state
   const [addQuestionOpen, setAddQuestionOpen] = useState(false);
   const [editQuestion, setEditQuestion] = useState<Question | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
@@ -81,26 +60,38 @@ export default function StudyPage() {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [catLoading, setCatLoading] = useState(false);
   const [catError, setCatError] = useState("");
-
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameName, setRenameName] = useState("");
   const [renameLoading, setRenameLoading] = useState(false);
   const [renameError, setRenameError] = useState("");
 
-  // ─── Navigation ───────────────────────────────────────────────────────
+  // Review empty modal
+  const [reviewEmptyOpen, setReviewEmptyOpen] = useState(false);
+
+  // Navigation
   const handleNavigate = useCallback(
     (category: Category) => navigateTo(category, [...breadcrumb, category]),
     [navigateTo, breadcrumb]
   );
 
-  // ─── Quiz helpers ──────────────────────────────────────────────────────
+  // Quiz helpers
   const startQuizForCategory = useCallback(
     async (categoryId: string, mode: "all" | "review" | "smart", includeSubs: boolean) => {
       try {
         const res = await fetch(`/api/questions?categoryId=${categoryId}&includeSubcategories=${includeSubs}`);
         if (!res.ok) throw new Error("Failed to load questions");
         const { data } = await res.json();
+
+        // Handle empty review pool with informational modal instead of toast
+        if (mode === "review") {
+          const reviewPool = (data ?? []).filter((q: Question) => q.stats?.in_review_pool);
+          if (reviewPool.length === 0) {
+            setReviewEmptyOpen(true);
+            return;
+          }
+        }
+
         const result = startQuiz(data ?? [], mode, settings.shuffleAnswers);
         if (result?.error) addToast(result.error, "warning");
       } catch {
@@ -137,7 +128,7 @@ export default function StudyPage() {
 
   const handleCurrentReview = useCallback(() => {
     const pool = questions.filter((q) => q.stats?.in_review_pool);
-    if (pool.length === 0) { addToast("Review pool is empty — great work!", "info"); return; }
+    if (pool.length === 0) { setReviewEmptyOpen(true); return; }
     const result = startQuiz(pool, "all", settings.shuffleAnswers);
     if (result?.error) addToast(result.error, "warning");
   }, [questions, startQuiz, addToast, settings.shuffleAnswers]);
@@ -152,7 +143,7 @@ export default function StudyPage() {
     [questions, startQuiz, addToast, settings.shuffleAnswers]
   );
 
-  // ─── CRUD ──────────────────────────────────────────────────────────────
+  // CRUD
   const handleDeleteQuestion = useCallback(
     async (id: string) => {
       if (!confirm("Delete this question? This cannot be undone.")) return;
@@ -167,9 +158,7 @@ export default function StudyPage() {
     async (id: string, data: { text: string; type: "single" | "multiple"; correct: string[]; incorrect: string[] }) => {
       try {
         const res = await fetch(`/api/questions/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data),
         });
         if (res.ok) { addToast("Question updated", "success"); await loadCategories(); return { ok: true }; }
         const json = await res.json();
@@ -196,12 +185,8 @@ export default function StudyPage() {
     setCatLoading(true);
     const { ok, error } = await addCategory(newCategoryName.trim(), currentCategory?.id ?? null);
     setCatLoading(false);
-    if (ok) {
-      addToast("Category created!", "success");
-      setNewCategoryName(""); setCatError(""); setAddCategoryOpen(false);
-    } else {
-      setCatError(error ?? "Failed to create category");
-    }
+    if (ok) { addToast("Category created!", "success"); setNewCategoryName(""); setCatError(""); setAddCategoryOpen(false); }
+    else { setCatError(error ?? "Failed to create category"); }
   }, [newCategoryName, addCategory, currentCategory, addToast]);
 
   const openRename = useCallback((categoryId: string, currentName: string) => {
@@ -257,7 +242,7 @@ export default function StudyPage() {
     [loadCategories, addToast]
   );
 
-  // ─── Loading ────────────────────────────────────────────────────────────
+  // Loading
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
@@ -273,7 +258,7 @@ export default function StudyPage() {
       <Header user={user} onSettings={() => setSettingsOpen(true)} />
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6">
-        {/* ── Left ──────────────────────────────────────────────────── */}
+        {/* Left */}
         <div className="flex flex-col gap-5">
           {/* Search + add */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -283,16 +268,10 @@ export default function StudyPage() {
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
               <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                type="text" value={search} onChange={(e) => setSearch(e.target.value)}
                 placeholder={currentCategory ? "Search questions…" : "Search categories…"}
                 className="w-full text-sm pl-9 pr-4 py-2.5 rounded-[var(--r-sm)] text-[var(--text)] placeholder-[var(--text-3)] transition-colors"
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  outline: 'none',
-                }}
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', outline: 'none' }}
                 onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
                 onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
               />
@@ -304,13 +283,11 @@ export default function StudyPage() {
             )}
           </div>
 
-          {/* Breadcrumb */}
           <Breadcrumb
             breadcrumb={breadcrumb}
             onNavigate={(cat, crumb) => { if (!cat) goHome(); else navigateTo(cat, crumb); }}
           />
 
-          {/* Category grid */}
           {currentSubcategories.length > 0 && (
             <section>
               <h2 className="text-xs font-semibold text-[var(--text-3)] uppercase tracking-wider mb-3">
@@ -331,7 +308,6 @@ export default function StudyPage() {
             </section>
           )}
 
-          {/* Question list */}
           {currentCategory && (
             <div className="card p-5">
               <QuestionList
@@ -352,7 +328,6 @@ export default function StudyPage() {
             </div>
           )}
 
-          {/* Empty state */}
           {!currentCategory && currentSubcategories.length === 0 && !loadingCats && (
             <div className="text-center py-20 text-[var(--text-3)]">
               <p className="text-4xl mb-3">📚</p>
@@ -369,31 +344,32 @@ export default function StudyPage() {
           )}
         </div>
 
-        {/* ── Sidebar ────────────────────────────────────────────────── */}
+        {/* Sidebar */}
         <aside className="flex flex-col gap-4">
           <StatsPanel stats={stats} isLoggedIn={isLoggedIn} />
 
-          <div className="card p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-[var(--text)]">Structure</h2>
-              {isLoggedIn && (
-                <span className="text-[10px] text-[var(--text-3)]">drag to reorder</span>
-              )}
+          {settings.showHierarchy && (
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-[var(--text)]">Structure</h2>
+                {isLoggedIn && (
+                  <span className="text-[10px] text-[var(--text-3)]">drag to reorder</span>
+                )}
+              </div>
+              <HierarchyPanel
+                categories={categories}
+                currentCategoryId={currentCategory?.id ?? null}
+                onNavigate={(cat) => navigateTo(cat, [cat])}
+                onGoHome={goHome}
+                onMoveCategory={isLoggedIn ? handleMoveCategory : undefined}
+                isLoggedIn={isLoggedIn}
+              />
             </div>
-            <HierarchyPanel
-              categories={categories}
-              currentCategoryId={currentCategory?.id ?? null}
-              onNavigate={(cat) => navigateTo(cat, [cat])}
-              onGoHome={goHome}
-              onMoveCategory={isLoggedIn ? handleMoveCategory : undefined}
-              isLoggedIn={isLoggedIn}
-            />
-          </div>
+          )}
         </aside>
       </div>
 
-      {/* ── Modals ──────────────────────────────────────────────────── */}
-
+      {/* Modals */}
       <AddQuestionModal
         isOpen={addQuestionOpen}
         onClose={() => setAddQuestionOpen(false)}
@@ -417,19 +393,19 @@ export default function StudyPage() {
         isLoggedIn={isLoggedIn}
       />
 
+      <ReviewEmptyModal
+        isOpen={reviewEmptyOpen}
+        onClose={() => setReviewEmptyOpen(false)}
+      />
+
       {/* Add Category */}
       <Modal isOpen={addCategoryOpen} onClose={() => { setAddCategoryOpen(false); setNewCategoryName(""); setCatError(""); }} title="Add category" size="sm">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="label">Name *</label>
-            <input
-              type="text"
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
+            <input type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleAddCategory(); }}
-              placeholder="e.g. Organic Chemistry"
-              autoFocus
-              style={inputStyle()}
+              placeholder="e.g. Organic Chemistry" autoFocus style={inputStyle()}
               onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
               onBlur={(e) => (e.target.style.borderColor = 'var(--border-2)')}
             />
@@ -455,13 +431,9 @@ export default function StudyPage() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="label">New name *</label>
-            <input
-              type="text"
-              value={renameName}
-              onChange={(e) => setRenameName(e.target.value)}
+            <input type="text" value={renameName} onChange={(e) => setRenameName(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleRenameCategory(); }}
-              autoFocus
-              style={inputStyle()}
+              autoFocus style={inputStyle()}
               onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
               onBlur={(e) => (e.target.style.borderColor = 'var(--border-2)')}
             />
@@ -481,15 +453,9 @@ export default function StudyPage() {
 
       {/* Quiz */}
       <QuizModal
-        isOpen={quizOpen}
-        session={session}
-        currentQuestion={currentQuestion}
-        isFinished={isFinished}
-        progress={progress}
-        onClose={closeQuiz}
-        onSubmitAnswer={submitAnswer}
-        onNext={nextQuestion}
-        onRecordAnswer={recordAnswer}
+        isOpen={quizOpen} session={session} currentQuestion={currentQuestion}
+        isFinished={isFinished} progress={progress} onClose={closeQuiz}
+        onSubmitAnswer={submitAnswer} onNext={nextQuestion} onRecordAnswer={recordAnswer}
       />
     </div>
   );

@@ -2,8 +2,59 @@
 import { useState, useCallback, useEffect } from "react";
 import { Category, Question, GlobalStats } from "@/types";
 
+type CategoryStatsMap = Record<string, {
+  total: number; attempted: number; mastered: number;
+  masteryPercent: number; accuracy: number;
+}>;
+
+function applyStatsToTree(cats: Category[], statsMap: CategoryStatsMap): Category[] {
+  return cats.map(cat => {
+    const annotated: Category = {
+      ...cat,
+      subcategories: cat.subcategories ? applyStatsToTree(cat.subcategories, statsMap) : [],
+    };
+
+    // Compute rolled-up stats (self + all subcategory descendants)
+    const allIds = collectAllIds(annotated);
+    let total = 0, attempted = 0, mastered = 0, totalCorrect = 0, totalAttempts = 0;
+    for (const id of allIds) {
+      const s = statsMap[id];
+      if (s) {
+        total += s.total;
+        attempted += s.attempted;
+        mastered += s.mastered;
+        // Approximate total correct from accuracy and attempts
+        totalCorrect += Math.round((s.accuracy / 100) * s.attempted);
+        totalAttempts += s.attempted;
+      }
+    }
+
+    if (attempted > 0 || total > 0) {
+      const catTotal = cat.totalQuestions ?? total;
+      annotated.stats = {
+        accuracy: totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0,
+        attempted,
+        mastered,
+        masteryPercent: catTotal > 0 ? Math.round((mastered / catTotal) * 100) : 0,
+        dueForReview: 0,
+      };
+    }
+
+    return annotated;
+  });
+}
+
+function collectAllIds(cat: Category): string[] {
+  const ids = [cat.id];
+  for (const sub of cat.subcategories ?? []) {
+    ids.push(...collectAllIds(sub));
+  }
+  return ids;
+}
+
 export function useStudy() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesRaw, setCategoriesRaw] = useState<Category[]>([]);
+  const [categoryStats, setCategoryStats] = useState<CategoryStatsMap>({});
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [stats, setStats] = useState<GlobalStats | null>(null);
@@ -12,21 +63,36 @@ export function useStudy() {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [search, setSearch] = useState("");
 
-  // ─── Load category tree ──────────────────────────────────────────────────
+  // Merge categories with stats
+  const categories = categoryStats && Object.keys(categoryStats).length > 0
+    ? applyStatsToTree(categoriesRaw, categoryStats)
+    : categoriesRaw;
+
   const loadCategories = useCallback(async () => {
     setLoadingCats(true);
     try {
       const res = await fetch("/api/categories");
       if (res.ok) {
         const { data } = await res.json();
-        setCategories(data);
+        setCategoriesRaw(data);
       }
     } finally {
       setLoadingCats(false);
     }
   }, []);
 
-  // ─── Load questions for a category ──────────────────────────────────────
+  const loadCategoryStats = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stats/categories");
+      if (res.ok) {
+        const { data } = await res.json();
+        setCategoryStats(data || {});
+      }
+    } catch {
+      // Guest or network error — no stats
+    }
+  }, []);
+
   const loadQuestions = useCallback(async (categoryId: string, includeSubs = true) => {
     setLoadingQuestions(true);
     try {
@@ -42,7 +108,6 @@ export function useStudy() {
     }
   }, []);
 
-  // ─── Load global stats ───────────────────────────────────────────────────
   const loadStats = useCallback(async () => {
     try {
       const res = await fetch("/api/stats");
@@ -55,7 +120,6 @@ export function useStudy() {
     }
   }, []);
 
-  // ─── Navigate into a category ────────────────────────────────────────────
   const navigateTo = useCallback(
     (category: Category | null, crumb: Category[]) => {
       setCurrentCategory(category);
@@ -70,7 +134,6 @@ export function useStudy() {
     [loadQuestions]
   );
 
-  // ─── Navigate home ───────────────────────────────────────────────────────
   const goHome = useCallback(() => {
     setCurrentCategory(null);
     setBreadcrumb([]);
@@ -78,16 +141,10 @@ export function useStudy() {
     setSearch("");
   }, []);
 
-  // ─── Add a question ──────────────────────────────────────────────────────
   const addQuestion = useCallback(
     async (data: {
-      category_id: string;
-      text: string;
-      type: "single" | "multiple";
-      correct: string[];
-      incorrect: string[];
-      difficulty: number;
-      tags: string[];
+      category_id: string; text: string; type: "single" | "multiple";
+      correct: string[]; incorrect: string[]; difficulty: number; tags: string[];
     }): Promise<{ ok: boolean; error?: string }> => {
       const res = await fetch("/api/questions", {
         method: "POST",
@@ -97,31 +154,28 @@ export function useStudy() {
       const json = await res.json();
       if (res.ok) {
         if (currentCategory) await loadQuestions(currentCategory.id, true);
-        await loadCategories();
+        await Promise.all([loadCategories(), loadCategoryStats()]);
         return { ok: true };
       }
       return { ok: false, error: json.error };
     },
-    [currentCategory, loadQuestions, loadCategories]
+    [currentCategory, loadQuestions, loadCategories, loadCategoryStats]
   );
 
-  // ─── Delete a question ───────────────────────────────────────────────────
   const deleteQuestion = useCallback(
     async (questionId: string): Promise<{ ok: boolean; error?: string }> => {
-      // Correctly calls /api/questions/[id] which has the actual question DELETE handler
       const res = await fetch(`/api/questions/${questionId}`, { method: "DELETE" });
       if (res.ok) {
         setQuestions((prev) => prev.filter((q) => q.id !== questionId));
-        await loadCategories();
+        await Promise.all([loadCategories(), loadCategoryStats()]);
         return { ok: true };
       }
       const json = await res.json();
       return { ok: false, error: json.error };
     },
-    [loadCategories]
+    [loadCategories, loadCategoryStats]
   );
 
-  // ─── Add a category ──────────────────────────────────────────────────────
   const addCategory = useCallback(
     async (name: string, parentId: string | null): Promise<{ ok: boolean; error?: string }> => {
       const res = await fetch("/api/categories", {
@@ -139,7 +193,6 @@ export function useStudy() {
     [loadCategories]
   );
 
-  // ─── Record an answer ────────────────────────────────────────────────────
   const recordAnswer = useCallback(
     async (questionId: string, correct: boolean) => {
       try {
@@ -148,15 +201,14 @@ export function useStudy() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ correct }),
         });
-        loadStats();
+        await Promise.all([loadStats(), loadCategoryStats()]);
       } catch {
         // Guest or network error
       }
     },
-    [loadStats]
+    [loadStats, loadCategoryStats]
   );
 
-  // ─── Filtered questions ───────────────────────────────────────────────────
   const filteredQuestions = search
     ? questions.filter(
         (q) =>
@@ -165,7 +217,6 @@ export function useStudy() {
       )
     : questions;
 
-  // ─── Subcategories of current level ──────────────────────────────────────
   const currentSubcategories = currentCategory
     ? findSubcategories(categories, currentCategory.id)
     : categories;
@@ -173,7 +224,8 @@ export function useStudy() {
   useEffect(() => {
     loadCategories();
     loadStats();
-  }, [loadCategories, loadStats]);
+    loadCategoryStats();
+  }, [loadCategories, loadStats, loadCategoryStats]);
 
   return {
     categories,
@@ -195,11 +247,11 @@ export function useStudy() {
     recordAnswer,
     loadStats,
     loadCategories,
+    loadCategoryStats,
     loadQuestions,
   };
 }
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
 function findSubcategories(tree: Category[], parentId: string): Category[] {
   for (const cat of tree) {
     if (cat.id === parentId) return cat.subcategories ?? [];
